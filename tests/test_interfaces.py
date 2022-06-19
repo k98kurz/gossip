@@ -1,6 +1,5 @@
 from unittest.mock import patch
-from context import gossip
-from gossip import interfaces
+from context import interfaces
 import unittest
 
 
