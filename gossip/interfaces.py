@@ -64,10 +64,6 @@ class AbstractMessage(ABC):
         pass
 
     @abstractmethod
-    def find_nonce(self, target: int) -> None:
-        pass
-
-    @abstractmethod
     def pack(self) -> bytes:
         pass
 
