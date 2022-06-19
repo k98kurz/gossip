@@ -7,6 +7,30 @@ protocol for passing messages between connected nodes.
 
 @todo
 
+## Status
+
+- [x] Globals and miscellaneous functions + tests
+- [x] Interfaces + tests
+- [ ] Basic Classes + tests
+- [ ] Example implementation using sockets
+
+## Installation
+
+Currently, this project is still in development, so the best way to install is
+to clone the repo and then run the following from within the root directory
+(assuming a Linix terminal):
+
+```
+python -m venv venv/
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+On Windows, you may have to run `source venv/Scripts/activate`.
+
+These instructions will change once development is complete and the module is
+published as a package.
+
 ## Models and Types
 
 @todo
@@ -17,7 +41,12 @@ protocol for passing messages between connected nodes.
 
 ## Tests
 
-@todo
+Open a terminal in the root directory and run the following:
+
+```
+cd tests/
+python -m unittest
+```
 
 ## ISC License
 
