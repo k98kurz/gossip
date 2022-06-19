@@ -1,7 +1,7 @@
 # Gossip
 
-This module uses ed25519, x25519, and sha256 to implement a gossip
-protocol for passing messages between connected nodes.
+This module uses ed25519, x25519, sha256, and shake256 to implement a
+gossip protocol for passing messages between connected nodes.
 
 ## Overview
 
