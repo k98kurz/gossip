@@ -49,7 +49,7 @@ class TestTapeHash(unittest.TestCase):
         tapehash.tapehash2(preimage, tape_size_multiplier=128)
         diff1 = time() - start
         start = time()
-        tapehash.tapehash2(preimage, tape_size_multiplier=1024)
+        tapehash.tapehash2(preimage, tape_size_multiplier=2048)
         diff2 = time() - start
 
         assert diff2 > diff1
