@@ -106,7 +106,7 @@ class Topic(AbstractTopic):
         if type(descriptor) is not bytes:
             raise TypeError("descriptor must be bytes")
 
-        id = shake_256(descriptor).digest(32)
+        id = sha256(descriptor).digest()
         return cls(id, descriptor)
 
 
@@ -145,7 +145,10 @@ class Node(AbstractNode):
         self.connections = set()
         self.bulletins = set()
         # subscribe the node to messages directed to itself
-        self.topics_followed = set([Topic.from_descriptor(address)])
+        self.topics_followed = set([
+            Topic.from_descriptor(address),
+            Topic.from_descriptor(b'node beacon channel')
+        ])
         self.data = {}
         self._vkey = VerifyKey(address)
         self._seed = None
@@ -153,7 +156,11 @@ class Node(AbstractNode):
         self._inbound = SimpleQueue()
         self._outbound = SimpleQueue()
         self._actions = SimpleQueue()
+        self._message_handler = None
+        self._message_sender = None
+        self._action_handler = None
 
+    @classmethod
     def from_seed(cls, seed: bytes) -> Node:
         """Create a node from a seed filling out _skey."""
         skey = SigningKey(seed)
@@ -217,7 +224,7 @@ class Node(AbstractNode):
             debug("Node.receive_message: old message discarded")
         elif message.sig is not None:
             if message.verify():
-                message.unseal(self._skey)
+                message.decrypt(self._skey)
                 self._inbound.put(message)
             else:
                 debug("Node.receive_message: message signature failed verification")
@@ -234,7 +241,7 @@ class Node(AbstractNode):
             raise ValueError("Cannot send a message without a SigningKey set.")
 
         message = Message(self.address, dst, msg)
-        message.seal()
+        message.encrypt()
         message.sign(self._skey)
 
         if len(self.connections):

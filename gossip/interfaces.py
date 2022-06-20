@@ -139,6 +139,9 @@ class AbstractBulletin(ABC):
     def __hash__(self) -> int:
         pass
 
+    def __eq__(self, other: AbstractBulletin) -> bool:
+        return hash(self) == hash(other)
+
     @abstractmethod
     def pack(self) -> bytes:
         pass
@@ -153,7 +156,7 @@ class AbstractNode(ABC):
     address: bytes
     msgs_seen: set[bytes]
     bulletins: set[AbstractBulletin]
-    topics_followed: set[bytes]
+    topics_followed: set[AbstractTopic]
     connections: set[AbstractConnection]
     data: dict
     _seed: bytes
