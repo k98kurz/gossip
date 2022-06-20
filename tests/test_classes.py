@@ -130,11 +130,10 @@ class TestBasicClasses(unittest.TestCase):
 
 
     # Content tests
-    def test_Content_instantiates_with_int_ts_and_bytes_id_and_content(self):
+    def test_Content_instantiates_with_and_bytes_id_and_content(self):
         content = classes.Content(b'123', b'hello world')
         assert hasattr(content, 'id') and type(content.id) is bytes
         assert hasattr(content, 'content') and type(content.content) is bytes
-        assert hasattr(content, 'ts') and type(content.ts) is int
 
     def test_Content_from_content_raises_TypeError_for_non_bytes_arg(self):
         with self.assertRaises(TypeError) as e:
@@ -144,6 +143,14 @@ class TestBasicClasses(unittest.TestCase):
     def test_Content_from_content_sets_id_to_hash_of_content(self):
         content = classes.Content.from_content(b'hello world')
         assert content.id == sha256(b'hello world').digest()
+
+    def test_Content_pack_returns_bytes_and_unpacks_properly(self):
+        content = classes.Content.from_content(b'hello world')
+        packed = content.pack()
+        assert type(packed) is bytes
+        unpacked = classes.Content.unpack(packed)
+        assert isinstance(unpacked, classes.Content)
+        assert unpacked == content
 
 
     # Topic tests
@@ -180,22 +187,25 @@ class TestBasicClasses(unittest.TestCase):
         assert str(e.exception) == 'topic must implement AbstractTopic'
 
     @patch.multiple(interfaces.AbstractTopic, __abstractmethods__=set())
-    def test_Bulletin_init_raises_TypeError_for_non_bytes_content(self):
+    def test_Bulletin_init_raises_TypeError_for_non_AbstractContent_content(self):
         with self.assertRaises(TypeError) as e:
-            classes.Bulletin(interfaces.AbstractTopic(b'hello world'), 'not bytes')
-        assert str(e.exception) == 'content must be bytes'
+            classes.Bulletin(interfaces.AbstractTopic(b'hello world'), 'not AbstractContent')
+        assert str(e.exception) == 'content must implement AbstractContent'
 
     @patch.multiple(interfaces.AbstractTopic, __abstractmethods__=set())
-    def test_Bulletin_instantiates_with_topic_and_content(self):
+    def test_Bulletin_instantiates_with_topic_content_and_ts(self):
         topic = interfaces.AbstractTopic(b'123', b'descriptor')
-        bulletin = classes.Bulletin(topic, b'hello world, this is ' + self.address0)
+        content = classes.Content.from_content(b'hello world, this is ' + self.address0)
+        bulletin = classes.Bulletin(topic, content)
         assert hasattr(bulletin, 'topic') and isinstance(bulletin.topic, interfaces.AbstractTopic)
-        assert hasattr(bulletin, 'content') and type(bulletin.content) is bytes
+        assert hasattr(bulletin, 'content') and isinstance(bulletin.content, interfaces.AbstractContent)
+        assert hasattr(bulletin, 'ts') and type(bulletin.ts) is int
 
     @patch.multiple(interfaces.AbstractTopic, __abstractmethods__=set())
     def test_Bulletin_bytes_hash_methods_return_proper_types(self):
         topic = interfaces.AbstractTopic(b'123', b'descriptor')
-        bulletin = classes.Bulletin(topic, b'hello world, this is ' + self.address0)
+        content = classes.Content.from_content(b'hello world, this is ' + self.address0)
+        bulletin = classes.Bulletin(topic, content)
         assert hasattr(bulletin, '__bytes__') and callable(bulletin.__bytes__)
         assert type(bulletin.__bytes__()) is bytes
         assert hasattr(bulletin, '__hash__') and callable(bulletin.__hash__)
@@ -206,13 +216,15 @@ class TestBasicClasses(unittest.TestCase):
         descriptor = b'node beacon channel'
         topic_id = sha256(descriptor).digest()
         topic = interfaces.AbstractTopic(topic_id)
-        bulletin = classes.Bulletin(topic, b'hello world, this is ' + self.address0)
+        content = classes.Content.from_content(b'hello world, this is ' + self.address0)
+        bulletin = classes.Bulletin(topic, content)
         assert hasattr(bulletin, 'pack') and callable(bulletin.pack)
         assert hasattr(classes.Bulletin, 'unpack') and callable(classes.Bulletin.unpack)
 
         packed = bulletin.pack()
         assert type(packed) is bytes
         assert packed[:32] == topic_id
+        assert packed[32:64] == content.id
 
         unpacked = classes.Bulletin.unpack(packed)
         assert type(unpacked) is classes.Bulletin
@@ -617,7 +629,8 @@ class TestBasicClasses(unittest.TestCase):
         # setup
         node = classes.Node.from_seed(self.seed0)
         topic = classes.Topic.from_descriptor(b'node beacon channel')
-        bulletin = classes.Bulletin(topic, b'\x00' + node.address)
+        content = classes.Content.from_content(b'\x00' + node.address)
+        bulletin = classes.Bulletin(topic, content)
 
         # precondition
         assert node.action_count() == 0

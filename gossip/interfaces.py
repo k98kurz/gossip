@@ -1,5 +1,5 @@
 from __future__ import annotations
-from abc import ABC, abstractclassmethod, abstractmethod
+from abc import ABC, ABCMeta, abstractclassmethod, abstractmethod
 from dataclasses import dataclass, field
 from gossip.misc import CONTENT_TTL
 from random import randint
@@ -27,6 +27,12 @@ class SupportsHandleAction(Protocol):
         ...
 
     def store_and_forward(self, action: AbstractAction) -> None:
+        ...
+
+
+class SupportsHandleSubscribedTopic(Protocol):
+    """Duck type protocol for subscribed topic."""
+    def handle(self, bulletin: AbstractBulletin) -> None:
         ...
 
 
@@ -93,17 +99,24 @@ class AbstractMessage(ABC):
 class AbstractContent(ABC):
     id: bytes
     content: bytes = None
-    ts: int = field(default_factory=lambda: int(time()))
 
     def __hash__(self) -> int:
         return hash(self.id)
 
+    def __bytes__(self) -> bytes:
+        return self.id + self.content
+
+    @abstractmethod
+    def pack(self) -> bytes:
+        pass
+
+    @abstractclassmethod
+    def unpack(cls, packed: bytes) -> AbstractContent:
+        pass
+
     @abstractclassmethod
     def from_content(cls, content: bytes) -> AbstractContent:
         pass
-
-    def expired(self) -> bool:
-        return time() >= self.ts + CONTENT_TTL
 
 
 @dataclass
@@ -149,18 +162,24 @@ class AbstractTopic(ABC):
 @dataclass
 class AbstractBulletin(ABC):
     topic: AbstractTopic
-    content: bytes
+    content: AbstractContent
+    ts: int = field(default_factory=lambda: int(time()))
 
     @abstractmethod
     def __bytes__(self) -> bytes:
         pass
 
-    @abstractmethod
     def __hash__(self) -> int:
-        pass
+        return hash(self.get_header())
 
     def __eq__(self, other: AbstractBulletin) -> bool:
         return hash(self) == hash(other)
+
+    def get_header(self) -> bytes:
+        return self.topic.id + self.content.id
+
+    def expired(self) -> bool:
+        return time() >= self.ts + CONTENT_TTL
 
     @abstractmethod
     def pack(self) -> bytes:
@@ -174,7 +193,7 @@ class AbstractBulletin(ABC):
 @dataclass
 class AbstractNode(ABC):
     address: bytes
-    content_seen: set[AbstractContent] = field(default_factory=set)
+    content_seen: set[AbstractBulletin] = field(default_factory=set)
     bulletins: set[AbstractBulletin] = field(default_factory=set)
     topics_followed: set[AbstractTopic] = field(default_factory=set)
     connections: set[AbstractConnection] = field(default_factory=set)
@@ -261,17 +280,17 @@ class AbstractNode(ABC):
     def action_count(self) -> int:
         pass
 
-    def mark_as_seen(self, content: AbstractContent) -> None:
-        if not isinstance(content, AbstractContent):
-            raise TypeError('content must implement AbstractContent')
+    def mark_as_seen(self, bulletin: AbstractBulletin) -> None:
+        if not isinstance(bulletin, AbstractBulletin):
+            raise TypeError('bulletin must implement AbstractBulletin')
 
-        self.content_seen.add(content)
+        self.content_seen.add(bulletin)
 
     def delete_old_content(self) -> int:
         to_delete = set()
-        for c in self.content_seen:
-            if c.expired():
-                to_delete.add(c)
+        for b in self.content_seen:
+            if b.expired():
+                to_delete.add(b)
 
         self.content_seen = self.content_seen.difference(to_delete)
         return len(to_delete)

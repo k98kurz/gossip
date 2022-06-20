@@ -115,6 +115,16 @@ class Content(AbstractContent):
         id = sha256(content).digest()
         return cls(id, content)
 
+    def pack(self) -> bytes:
+        fstr = '!32s' + str(len(self.content)) + 's'
+        return struct.pack(fstr, self.id, self.content)
+
+    @classmethod
+    def unpack(cls, packed: bytes) -> Content:
+        fstr = '!32s' + str(len(packed) - 32) + 's'
+        (id, content) = struct.unpack(fstr, packed)
+        return cls(id, content)
+
 
 class Topic(AbstractTopic):
     @classmethod
@@ -127,30 +137,29 @@ class Topic(AbstractTopic):
 
 
 class Bulletin(AbstractBulletin):
-    def __init__(self, topic: AbstractTopic, content: bytes) -> None:
+    def __init__(self, topic: AbstractTopic, content: AbstractContent, ts: int = None) -> None:
         if not isinstance(topic, AbstractTopic):
             raise TypeError("topic must implement AbstractTopic")
-        if type(content) is not bytes:
-            raise TypeError("content must be bytes")
+        if not isinstance(content, AbstractContent):
+            raise TypeError("content must implement AbstractContent")
 
         self.topic = topic
         self.content = content
+        self.ts = ts or int(time())
 
     def __bytes__(self) -> bytes:
         return self.pack()
 
-    def __hash__(self) -> int:
-        return hash(bytes(self))
-
     def pack(self) -> bytes:
-        fstr = '!32s' + str(len(self.content)) + 's'
-        return struct.pack(fstr, self.topic.id, self.content)
+        content = self.content.pack()
+        fstr = '!32s' + str(len(content)) + 's'
+        return struct.pack(fstr, self.topic.id, content)
 
     @classmethod
     def unpack(cls, data: bytes) -> Bulletin:
         fstr = '!32s' + str(len(data) - 32) + 's'
         topic_id, content = struct.unpack(fstr, data)
-        return cls(Topic(topic_id), content)
+        return cls(Topic(topic_id), Content.unpack(content))
 
 
 class Node(AbstractNode):

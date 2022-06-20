@@ -1,3 +1,4 @@
+from hashlib import sha256
 from unittest.mock import patch
 from context import interfaces
 import unittest
@@ -99,9 +100,8 @@ class TestInterfaces(unittest.TestCase):
 
     # AbstractContent test
     @patch.multiple(interfaces.AbstractContent, __abstractmethods__=set())
-    def test_AbstractContent_instantiates_with_int_ts_and_None_or_bytes_content(self):
+    def test_AbstractContent_instantiates_with_None_or_bytes_content(self):
         content = interfaces.AbstractContent(b'123')
-        assert type(content.ts) is int
         assert content.content is None
         content = interfaces.AbstractContent(b'123', b'hello world')
         assert type(content.content) is bytes
@@ -115,27 +115,41 @@ class TestInterfaces(unittest.TestCase):
         assert type(node.address) is bytes
         assert type(node.__hash__()) is int
 
+    @patch.multiple(interfaces.AbstractBulletin, __abstractmethods__=set())
     @patch.multiple(interfaces.AbstractContent, __abstractmethods__=set())
+    @patch.multiple(interfaces.AbstractTopic, __abstractmethods__=set())
     @patch.multiple(interfaces.AbstractNode, __abstractmethods__=set())
-    def test_AbstractNode_mark_as_seen_adds_content_to_content_seen(self):
+    def test_AbstractNode_mark_as_seen_adds_bulletin_to_content_seen(self):
         node = interfaces.AbstractNode(b'nodeaddress')
-        content = interfaces.AbstractContent(b'123', b'hello world')
+        descriptor = b'some topic of interest'
+        topic_id = sha256(descriptor).digest()
+        topic = interfaces.AbstractTopic(topic_id, descriptor)
+        content_id = sha256(b'hello world').digest()
+        content = interfaces.AbstractContent(content_id, b'hello world')
+        bulletin = interfaces.AbstractBulletin(topic, content)
 
         # precondition
         assert len(node.content_seen) == 0
 
         # test
-        node.mark_as_seen(content)
+        node.mark_as_seen(bulletin)
         assert len(node.content_seen) == 1
-        assert content in node.content_seen
+        assert bulletin in node.content_seen
 
+    @patch.multiple(interfaces.AbstractBulletin, __abstractmethods__=set())
     @patch.multiple(interfaces.AbstractContent, __abstractmethods__=set())
+    @patch.multiple(interfaces.AbstractTopic, __abstractmethods__=set())
     @patch.multiple(interfaces.AbstractNode, __abstractmethods__=set())
-    def test_AbstractNode_delete_old_content_removes_expired_content(self):
+    def test_AbstractNode_delete_old_content_removes_expired_bulletins(self):
         node = interfaces.AbstractNode(b'nodeaddress')
-        content = interfaces.AbstractContent(b'123', b'hello world')
-        content.ts -= misc.CONTENT_TTL + 2
-        node.content_seen.add(content)
+        descriptor = b'some topic of interest'
+        topic_id = sha256(descriptor).digest()
+        topic = interfaces.AbstractTopic(topic_id, descriptor)
+        content_id = sha256(b'hello world').digest()
+        content = interfaces.AbstractContent(content_id, b'hello world')
+        bulletin = interfaces.AbstractBulletin(topic, content)
+        bulletin.ts -= misc.CONTENT_TTL + 2
+        node.content_seen.add(bulletin)
 
         # precondition
         assert len(node.content_seen) == 1
