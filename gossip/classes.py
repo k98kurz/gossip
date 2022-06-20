@@ -186,23 +186,23 @@ class Node(AbstractNode):
         else:
             return "{'address': '" + format_address(self.address) + "'}"
 
-    def register_message_sender(self, sndr: SupportsSendMessage) -> None:
+    def register_message_sender(self, sender: SupportsSendMessage) -> None:
         """Register the message sender."""
-        if not hasattr(sndr, 'send') or not callable(sndr.send):
-            raise TypeError('sndr must fulfill SupportsSendMessage duck type')
-        self._message_sender = sndr
+        if not hasattr(sender, 'send') or not callable(sender.send):
+            raise TypeError('sender must fulfill SupportsSendMessage duck type')
+        self._message_sender = sender
 
-    def register_message_handler(self, hndlr: SupportsHandleMessage) -> None:
+    def register_message_handler(self, handler: SupportsHandleMessage) -> None:
         """Register the incoming message handler."""
-        if not hasattr(hndlr, 'handle') or not callable(hndlr.handle):
-            raise TypeError('hndlr must fulfill SupportsHandleMessage duck type')
-        self._message_handler = hndlr
+        if not hasattr(handler, 'handle') or not callable(handler.handle):
+            raise TypeError('handler must fulfill SupportsHandleMessage duck type')
+        self._message_handler = handler
 
-    def register_action_handler(self, hndlr: SupportsHandleAction) -> None:
+    def register_action_handler(self, handler: SupportsHandleAction) -> None:
         """Register the action handler."""
-        if not hasattr(hndlr, 'handle') or not callable(hndlr.handle):
-            raise TypeError('hndlr must fulfill SupportsHandleAction duck type')
-        self._action_handler = hndlr
+        if not hasattr(handler, 'handle') or not callable(handler.handle):
+            raise TypeError('handler must fulfill SupportsHandleAction duck type')
+        self._action_handler = handler
 
     def add_connection(self, connection: AbstractConnection) -> None:
         """Add the specified connection."""
