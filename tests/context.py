@@ -6,3 +6,4 @@ import gossip
 from gossip import misc
 from gossip import interfaces
 from gossip import classes
+from gossip import tapehash
