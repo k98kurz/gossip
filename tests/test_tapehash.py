@@ -1,5 +1,5 @@
 from context import tapehash
-from time import time
+from time import perf_counter
 import unittest
 
 
@@ -21,12 +21,12 @@ class TestTapeHash(unittest.TestCase):
 
     def test_tapehash1_execution_time_scales_with_code_size(self):
         preimage = b'hello world'
-        start = time()
+        start = perf_counter()
         tapehash.tapehash1(preimage, code_size=128)
-        diff1 = time() - start
-        start = time()
+        diff1 = perf_counter() - start
+        start = perf_counter()
         tapehash.tapehash1(preimage, code_size=1024)
-        diff2 = time() - start
+        diff2 = perf_counter() - start
 
         assert diff2 > diff1
 
@@ -45,12 +45,12 @@ class TestTapeHash(unittest.TestCase):
 
     def test_tapehash2_execution_time_scales_with_tape_size_multiplier(self):
         preimage = b'hello world'
-        start = time()
+        start = perf_counter()
         tapehash.tapehash2(preimage, tape_size_multiplier=128)
-        diff1 = time() - start
-        start = time()
+        diff1 = perf_counter() - start
+        start = perf_counter()
         tapehash.tapehash2(preimage, tape_size_multiplier=2048)
-        diff2 = time() - start
+        diff2 = perf_counter() - start
 
         assert diff2 > diff1
 
