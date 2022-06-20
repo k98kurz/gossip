@@ -1,27 +1,30 @@
 from __future__ import annotations
 from gossip.interfaces import (
+    AbstractAction,
     AbstractBulletin,
+    AbstractConnection,
+    AbstractContent,
+    AbstractMessage,
+    AbstractNode,
     AbstractTopic,
     SupportsHandleAction,
     SupportsHandleMessage,
     SupportsSendMessage,
-    AbstractAction,
-    AbstractConnection,
-    AbstractMessage,
-    AbstractNode,
 )
 from gossip.misc import(
+    CONTENT_TTL,
     MESSAGE_TTL,
-    DIFFICULTY_BITS,
+    TAPEHASH_CODE_SIZE,
     check_difficulty,
     format_address,
     debug,
 )
-from hashlib import sha256, shake_256
+from gossip.tapehash import tapehash1
+from hashlib import sha256
+from nacl.exceptions import TypeError as NaclTypeError
 from nacl.public import SealedBox
 from nacl.signing import SigningKey, VerifyKey, SignedMessage
 from queue import SimpleQueue
-from random import randint
 import struct
 from time import time
 
@@ -47,13 +50,14 @@ class Message(AbstractMessage):
 
     def check_hash(self) -> bool:
         """Check that the hash of a message meets the difficulty threshold."""
-        digest = shake_256(self.get_header() + self.body).digest(int(DIFFICULTY_BITS//8)+1)
+        digest = tapehash1(self.get_header() + self.body, TAPEHASH_CODE_SIZE)
         return check_difficulty(digest)
 
-    def pow(self) -> None:
+    def hashcash(self) -> Message:
         """Increment the nonce until check_hash() returns True."""
         while (not self.check_hash()):
             self.nonce = (self.nonce + 1) % 2**32
+        return self
 
     def pack(self) -> bytes:
         """Pack the data with struct."""
@@ -67,11 +71,11 @@ class Message(AbstractMessage):
         (dst, src, ts, nonce, sig, body) = struct.unpack(fstr, packed)
         return Message(src, dst, body, ts, nonce, sig)
 
-    def sign(self, skey: SigningKey) -> SignedMessage:
+    def sign(self, skey: SigningKey) -> Message:
         """Generate a signature for the message."""
         sig = skey.sign(bytes(self))
         self.sig = sig[:64]
-        return sig
+        return self
 
     def verify(self) -> bool:
         """Verify the message signature"""
@@ -83,12 +87,13 @@ class Message(AbstractMessage):
         except:
             return False
 
-    def encrypt(self) -> None:
+    def encrypt(self) -> Message:
         """Encrypt using ephemeral ECDHE."""
         sealed_box = SealedBox(VerifyKey(self.dst).to_curve25519_public_key())
         self.body = sealed_box.encrypt(self.body)
+        return self
 
-    def decrypt(self, skey: SigningKey) -> None:
+    def decrypt(self, skey: SigningKey) -> Message:
         """Decrypt using ephemeral ECDHE."""
         if type(skey) is not SigningKey:
             raise TypeError('skey must be a valid SigningKey')
@@ -98,6 +103,17 @@ class Message(AbstractMessage):
         privk = skey.to_curve25519_private_key()
         sealed_box = SealedBox(privk)
         self.body = sealed_box.decrypt(self.body)
+        return self
+
+
+class Content(AbstractContent):
+    @classmethod
+    def from_content(cls, content: bytes) -> Content:
+        if type(content) is not bytes:
+            raise TypeError('content must be bytes')
+
+        id = sha256(content).digest()
+        return cls(id, content)
 
 
 class Topic(AbstractTopic):
@@ -140,25 +156,17 @@ class Bulletin(AbstractBulletin):
 class Node(AbstractNode):
     def __init__(self, address: bytes) -> None:
         """Create a node from its address (public key bytes)."""
-        self.address = address
-        self.msgs_seen = set()
-        self.connections = set()
-        self.bulletins = set()
-        # subscribe the node to messages directed to itself
+        # set defaults
+        super().__init__(address)
+
+        # set the vkey
+        self._vkey = VerifyKey(address)
+
+        # subscribe the node to messages directed to itself and the beacon channel
         self.topics_followed = set([
             Topic.from_descriptor(address),
             Topic.from_descriptor(b'node beacon channel')
         ])
-        self.data = {}
-        self._vkey = VerifyKey(address)
-        self._seed = None
-        self._skey = None
-        self._inbound = SimpleQueue()
-        self._outbound = SimpleQueue()
-        self._actions = SimpleQueue()
-        self._message_handler = None
-        self._message_sender = None
-        self._action_handler = None
 
     @classmethod
     def from_seed(cls, seed: bytes) -> Node:
@@ -220,11 +228,18 @@ class Node(AbstractNode):
 
         global MESSAGE_TTL
 
-        if int(time()) > (message.ts + MESSAGE_TTL):
+        if message.dst != self.address:
+            debug("Node.receive_message: message dropped for improper destination")
+        elif int(time()) > (message.ts + MESSAGE_TTL):
             debug("Node.receive_message: old message discarded")
+        elif not message.check_hash():
+            debug("Node.receive_message: message failed hashcash check")
         elif message.sig is not None:
             if message.verify():
-                message.decrypt(self._skey)
+                try:
+                    message.decrypt(self._skey)
+                except NaclTypeError:
+                    debug("Node.receive_message: unencrypted message encountered")
                 self._inbound.put(message)
             else:
                 debug("Node.receive_message: message signature failed verification")
@@ -241,8 +256,7 @@ class Node(AbstractNode):
             raise ValueError("Cannot send a message without a SigningKey set.")
 
         message = Message(self.address, dst, msg)
-        message.encrypt()
-        message.sign(self._skey)
+        message.encrypt().hashcash().sign(self._skey)
 
         if len(self.connections):
             if len([c for c in self.connections if dst in [n.address for n in c.nodes]]):
@@ -252,23 +266,20 @@ class Node(AbstractNode):
         else:
             self._outbound.put(message)
 
-    def subscribe(self, topic: bytes) -> None:
-        if type(topic) is not bytes:
-            raise TypeError('topic must be exactly 32 bytes')
-        if len(topic) != 32:
-            raise ValueError('topic must be exactly 32 bytes')
+    def subscribe(self, topic: AbstractTopic) -> None:
+        if not isinstance(topic, AbstractTopic):
+            raise TypeError('topic must implement AbstractTopic')
 
         self.topics_followed.add(topic)
 
-    def unsubscribe(self, topic: bytes) -> None:
+    def unsubscribe(self, topic: AbstractTopic) -> None:
         if topic in self.topics_followed:
             self.topics_followed.remove(topic)
 
     def publish(self, bulletin: AbstractBulletin) -> None:
         """Publish a bulletin by engaging the store_and_forward action."""
         message = Message(self.address, self.address, bytes(bulletin))
-        message.encrypt()
-        message.sign(self._skey)
+        message.encrypt().hashcash().sign(self._skey)
         self.receive_message(message)
 
     def queue_action(self, act: AbstractAction) -> None:
@@ -310,17 +321,11 @@ class Action(AbstractAction):
 class Connection(AbstractConnection):
     """Connection model represent an edge connecting two Nodes together."""
     def __init__(self, nodes: list[AbstractNode]) -> None:
-        if type(nodes) is not list or len(nodes) != 2:
+        if type(nodes) not in (list, set) or len(nodes) != 2:
             raise Exception('a Connection must connect exactly 2 nodes')
         for n in nodes:
             if not isinstance(n, AbstractNode):
                 raise Exception('a Connection must connect exactly 2 nodes')
 
-        self.nodes = set(nodes)
+        self.nodes = set(nodes) if type(nodes) is list else nodes
         self.data = {}
-
-    def __hash__(self) -> int:
-        """Enable inclusion in sets."""
-        node_list = list(self.nodes)
-        node_list.sort()
-        return hash(node_list[0].address + node_list[1].address)
