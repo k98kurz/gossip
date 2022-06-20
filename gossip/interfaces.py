@@ -1,6 +1,7 @@
 from __future__ import annotations
 from abc import ABC, abstractclassmethod, abstractmethod
 from dataclasses import dataclass, field
+from gossip.misc import CONTENT_TTL
 from random import randint
 from time import time
 from nacl.signing import SigningKey, VerifyKey, SignedMessage
@@ -56,11 +57,11 @@ class AbstractMessage(ABC):
         pass
 
     @abstractmethod
-    def check_hash(self, target: int) -> bool:
+    def check_hash(self) -> bool:
         pass
 
     @abstractmethod
-    def pow(self) -> None:
+    def hashcash(self) -> AbstractMessage:
         pass
 
     @abstractmethod
@@ -80,12 +81,29 @@ class AbstractMessage(ABC):
         pass
 
     @abstractmethod
-    def encrypt(self) -> None:
+    def encrypt(self) -> AbstractMessage:
         pass
 
     @abstractmethod
-    def decrypt(self, skey: SigningKey) -> None:
+    def decrypt(self, skey: SigningKey) -> AbstractMessage:
         pass
+
+
+@dataclass
+class AbstractContent(ABC):
+    id: bytes
+    content: bytes = None
+    ts: int = field(default_factory=lambda: int(time()))
+
+    def __hash__(self) -> int:
+        return hash(self.id)
+
+    @abstractclassmethod
+    def from_content(cls, content: bytes) -> AbstractContent:
+        pass
+
+    def expired(self) -> bool:
+        return time() >= self.ts + CONTENT_TTL
 
 
 @dataclass
@@ -93,9 +111,11 @@ class AbstractConnection(ABC):
     nodes: set[AbstractNode]
     data: dict = field(default_factory=dict)
 
-    @abstractmethod
     def __hash__(self) -> int:
-        pass
+        """Enable inclusion in sets."""
+        node_list = list(self.nodes)
+        node_list.sort()
+        return hash(node_list[0].address + node_list[1].address)
 
 
 @dataclass
@@ -154,25 +174,20 @@ class AbstractBulletin(ABC):
 @dataclass
 class AbstractNode(ABC):
     address: bytes
-    msgs_seen: set[bytes]
-    bulletins: set[AbstractBulletin]
-    topics_followed: set[AbstractTopic]
-    connections: set[AbstractConnection]
-    data: dict
-    _seed: bytes
-    _skey: SigningKey
-    _vkey: VerifyKey
-    _inbound: SimpleQueue
-    _outbound: SimpleQueue
-    _actions: SimpleQueue
-    _message_sender: SupportsSendMessage
-    _message_handler: SupportsHandleMessage
-    _action_handler: SupportsHandleAction
-
-    @abstractmethod
-    def __init__(self, address: bytes) -> None:
-        self.address = address
-        pass
+    content_seen: set[AbstractContent] = field(default_factory=set)
+    bulletins: set[AbstractBulletin] = field(default_factory=set)
+    topics_followed: set[AbstractTopic] = field(default_factory=set)
+    connections: set[AbstractConnection] = field(default_factory=set)
+    data: dict = field(default_factory=dict)
+    _seed: bytes = None
+    _skey: SigningKey = None
+    _vkey: VerifyKey = None
+    _inbound: SimpleQueue = field(default_factory=SimpleQueue)
+    _outbound: SimpleQueue = field(default_factory=SimpleQueue)
+    _actions: SimpleQueue = field(default_factory=SimpleQueue)
+    _message_sender: SupportsSendMessage = None
+    _message_handler: SupportsHandleMessage = None
+    _action_handler: SupportsHandleAction = None
 
     @abstractclassmethod
     def from_seed(cls, seed: bytes) -> AbstractNode:
@@ -223,11 +238,11 @@ class AbstractNode(ABC):
         pass
 
     @abstractmethod
-    def subscribe(self, topic: bytes) -> None:
+    def subscribe(self, topic: AbstractTopic) -> None:
         pass
 
     @abstractmethod
-    def unsubscribe(self, topic: bytes) -> None:
+    def unsubscribe(self, topic: AbstractTopic) -> None:
         pass
 
     @abstractmethod
@@ -245,3 +260,18 @@ class AbstractNode(ABC):
     @abstractmethod
     def action_count(self) -> int:
         pass
+
+    def mark_as_seen(self, content: AbstractContent) -> None:
+        if not isinstance(content, AbstractContent):
+            raise TypeError('content must implement AbstractContent')
+
+        self.content_seen.add(content)
+
+    def delete_old_content(self) -> int:
+        to_delete = set()
+        for c in self.content_seen:
+            if c.expired():
+                to_delete.add(c)
+
+        self.content_seen = self.content_seen.difference(to_delete)
+        return len(to_delete)

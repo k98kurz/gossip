@@ -2,6 +2,8 @@ from unittest.mock import patch
 from context import interfaces
 import unittest
 
+from gossip import misc
+
 
 class TestInterfaces(unittest.TestCase):
     """Test suite for interfaces."""
@@ -95,13 +97,54 @@ class TestInterfaces(unittest.TestCase):
         assert len(message.metadata.keys()) == 0
 
 
-    # AbstractNode test
+    # AbstractContent test
+    @patch.multiple(interfaces.AbstractContent, __abstractmethods__=set())
+    def test_AbstractContent_instantiates_with_int_ts_and_None_or_bytes_content(self):
+        content = interfaces.AbstractContent(b'123')
+        assert type(content.ts) is int
+        assert content.content is None
+        content = interfaces.AbstractContent(b'123', b'hello world')
+        assert type(content.content) is bytes
+
+
+    # AbstractNode tests
     @patch.multiple(interfaces.AbstractNode, __abstractmethods__=set())
     def test_AbstractNode_instantiates_with_address_and_is_hashable(self):
         node = interfaces.AbstractNode(b'nodeaddress')
         assert hasattr(node, 'address')
         assert type(node.address) is bytes
         assert type(node.__hash__()) is int
+
+    @patch.multiple(interfaces.AbstractContent, __abstractmethods__=set())
+    @patch.multiple(interfaces.AbstractNode, __abstractmethods__=set())
+    def test_AbstractNode_mark_as_seen_adds_content_to_content_seen(self):
+        node = interfaces.AbstractNode(b'nodeaddress')
+        content = interfaces.AbstractContent(b'123', b'hello world')
+
+        # precondition
+        assert len(node.content_seen) == 0
+
+        # test
+        node.mark_as_seen(content)
+        assert len(node.content_seen) == 1
+        assert content in node.content_seen
+
+    @patch.multiple(interfaces.AbstractContent, __abstractmethods__=set())
+    @patch.multiple(interfaces.AbstractNode, __abstractmethods__=set())
+    def test_AbstractNode_delete_old_content_removes_expired_content(self):
+        node = interfaces.AbstractNode(b'nodeaddress')
+        content = interfaces.AbstractContent(b'123', b'hello world')
+        content.ts -= misc.CONTENT_TTL + 2
+        node.content_seen.add(content)
+
+        # precondition
+        assert len(node.content_seen) == 1
+
+        # test
+        deleted = node.delete_old_content()
+        assert type(deleted) is int
+        assert deleted == 1
+        assert len(node.content_seen) == 0
 
 
     # AbstractConnection test
