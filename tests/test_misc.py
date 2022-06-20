@@ -70,6 +70,9 @@ class TestMisc(unittest.TestCase):
         if not misc.ENABLE_DEBUG:
             misc.toggle_debug()
 
+        # deregister print from debug handlers
+        misc.deregister_debug_handler(print)
+
         # register custom handler and ensure it gets called
         misc.register_debug_handler(debug)
         misc.debug(msg)
@@ -89,6 +92,9 @@ class TestMisc(unittest.TestCase):
         misc.deregister_debug_handler(debug)
         misc.debug(msg)
         assert flag == False
+
+        # reregister print as debug handler
+        misc.register_debug_handler(print)
 
     def test_set_difficulty_raises_TypeError_for_non_int_arg(self):
         with self.assertRaises(TypeError) as e:
