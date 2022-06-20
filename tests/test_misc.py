@@ -12,6 +12,10 @@ class TestMisc(unittest.TestCase):
         assert hasattr(misc, 'DISPLAY_SHORT_ADDRESSES')
         assert type(misc.DISPLAY_SHORT_ADDRESSES) is bool
 
+    def test_CONTENT_TTL_is_int(self):
+        assert hasattr(misc, 'CONTENT_TTL')
+        assert type(misc.CONTENT_TTL) is int
+
     def test_MESSAGE_TTL_is_int(self):
         assert hasattr(misc, 'MESSAGE_TTL')
         assert type(misc.MESSAGE_TTL) is int
