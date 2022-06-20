@@ -13,10 +13,13 @@ class TestBasicClasses(unittest.TestCase):
         super().setUpClass()
         cls.seed0 = bytes.fromhex('bc66e048abf92e97c35f00607a9260dd8299d91e698253c1090872d7d441df80')
         cls.seed1 = bytes.fromhex('a7a4b3a2afae8026fb6d523f06f67e5e69ca8e583881ca34574a8e6a9658eaec')
+        cls.seed2 = bytes.fromhex('a5f496e55953105c5f80939f7a7794edcfd89997e801b6365effd35af1150b02')
         cls.skey0 = SigningKey(cls.seed0)
         cls.skey1 = SigningKey(cls.seed1)
+        cls.skey2 = SigningKey(cls.seed2)
         cls.address0 = bytes(cls.skey0.verify_key)
         cls.address1 = bytes(cls.skey1.verify_key)
+        cls.address2 = bytes(cls.skey2.verify_key)
 
     def test_imports_without_errors(self):
         assert True
@@ -133,6 +136,11 @@ class TestBasicClasses(unittest.TestCase):
         assert hasattr(content, 'content') and type(content.content) is bytes
         assert hasattr(content, 'ts') and type(content.ts) is int
 
+    def test_Content_from_content_raises_TypeError_for_non_bytes_arg(self):
+        with self.assertRaises(TypeError) as e:
+            classes.Content.from_content('not bytes')
+        assert str(e.exception) == 'content must be bytes'
+
     def test_Content_from_content_sets_id_to_hash_of_content(self):
         content = classes.Content.from_content(b'hello world')
         assert content.id == sha256(b'hello world').digest()
@@ -143,6 +151,11 @@ class TestBasicClasses(unittest.TestCase):
         topic = classes.Topic(b'abc', b'letters')
         assert hasattr(topic, 'id') and type(topic.id) is bytes
         assert hasattr(topic, 'descriptor') and type(topic.descriptor) is bytes
+
+    def test_Topic_from_descriptor_raises_TypeError_for_non_bytes_arg(self):
+        with self.assertRaises(TypeError) as e:
+            classes.Topic.from_descriptor('not bytes')
+        assert str(e.exception) == 'descriptor must be bytes'
 
     def test_Topic_from_descriptor_sets_id_to_shake256_of_descriptor(self):
         descriptor = b'node beacon channel'
@@ -161,6 +174,17 @@ class TestBasicClasses(unittest.TestCase):
 
 
     # Bulletin tests
+    def test_Bulletin_init_raises_TypeError_for_non_AbstractTopic_arg(self):
+        with self.assertRaises(TypeError) as e:
+            classes.Bulletin('not a topic', b'content')
+        assert str(e.exception) == 'topic must implement AbstractTopic'
+
+    @patch.multiple(interfaces.AbstractTopic, __abstractmethods__=set())
+    def test_Bulletin_init_raises_TypeError_for_non_bytes_content(self):
+        with self.assertRaises(TypeError) as e:
+            classes.Bulletin(interfaces.AbstractTopic(b'hello world'), 'not bytes')
+        assert str(e.exception) == 'content must be bytes'
+
     @patch.multiple(interfaces.AbstractTopic, __abstractmethods__=set())
     def test_Bulletin_instantiates_with_topic_and_content(self):
         topic = interfaces.AbstractTopic(b'123', b'descriptor')
@@ -256,35 +280,15 @@ class TestBasicClasses(unittest.TestCase):
         message = node1._inbound.get()
         assert message.body == b'hello'
 
-    def test_Node_add_connection_raises_TypeError_on_non_AbstractConnection_arg(self):
+    def test_Node_register_message_sender_raises_TypeError_for_invalid_arg(self):
+        # setup
         node = classes.Node(self.address0)
+        class Thing:
+            ...
+
         with self.assertRaises(TypeError) as e:
-            node.add_connection('does not implement AbstractConnection')
-        assert str(e.exception) == 'connection must implement AbstractConnection'
-
-    def test_Node_drop_connection_raises_TypeError_on_non_AbstractConnection_arg(self):
-        node = classes.Node(self.address0)
-        with self.assertRaises(TypeError) as e:
-            node.drop_connection('does not implement AbstractConnection')
-        assert str(e.exception) == 'connection must implement AbstractConnection'
-
-    @patch.multiple(interfaces.AbstractConnection, __abstractmethods__=set())
-    def test_Node_add_connection_and_drop_connection_work(self):
-        node0 = classes.Node(self.address0)
-        node1 = classes.Node(self.address1)
-        connection = interfaces.AbstractConnection(set([node0, node1]))
-
-        # precondition
-        assert len(node0.connections) == 0
-
-        # test 1
-        node0.add_connection(connection)
-        assert len(node0.connections) == 1
-        assert connection in node0.connections
-
-        # test 2
-        node0.drop_connection(connection)
-        assert len(node0.connections) == 0
+            node.register_message_sender(Thing())
+        assert str(e.exception) == 'sender must fulfill SupportsSendMessage duck type'
 
     def test_Node_register_message_sender_sends_messages_on_process(self):
         class MessageSender(interfaces.SupportsSendMessage):
@@ -330,6 +334,16 @@ class TestBasicClasses(unittest.TestCase):
         assert node1.action_count() == 1
         assert node1._inbound.qsize() == 1
 
+    def test_Node_register_message_handler_raises_TypeError_for_invalid_arg(self):
+        # setup
+        node = classes.Node(self.address0)
+        class Thing:
+            ...
+
+        with self.assertRaises(TypeError) as e:
+            node.register_message_handler(Thing())
+        assert str(e.exception) == 'handler must fulfill SupportsHandleMessage duck type'
+
     @patch.multiple(interfaces.AbstractAction, __abstractmethods__=set())
     def test_Node_register_message_handler_handles_messages_on_process(self):
         class MessageHandler(interfaces.SupportsHandleMessage):
@@ -364,6 +378,16 @@ class TestBasicClasses(unittest.TestCase):
         node.process()
         assert node._inbound.qsize() == 0
         assert node._actions.qsize() == 1
+
+    def test_Node_register_action_handler_raises_TypeError_for_invalid_arg(self):
+        # setup
+        node = classes.Node(self.address0)
+        class Thing:
+            ...
+
+        with self.assertRaises(TypeError) as e:
+            node.register_action_handler(Thing())
+        assert str(e.exception) == 'handler must fulfill SupportsHandleAction duck type'
 
     @patch.multiple(interfaces.AbstractAction, __abstractmethods__=set())
     @patch.multiple(interfaces.AbstractConnection, __abstractmethods__=set())
@@ -405,6 +429,49 @@ class TestBasicClasses(unittest.TestCase):
         assert node.action_count() == 1
         assert node._actions.qsize() == 0
         assert node._outbound.qsize() == 1
+
+    def test_Node_add_connection_raises_TypeError_on_non_AbstractConnection_arg(self):
+        node = classes.Node(self.address0)
+        with self.assertRaises(TypeError) as e:
+            node.add_connection('does not implement AbstractConnection')
+        assert str(e.exception) == 'connection must implement AbstractConnection'
+
+    def test_Node_drop_connection_raises_TypeError_on_non_AbstractConnection_arg(self):
+        node = classes.Node(self.address0)
+        with self.assertRaises(TypeError) as e:
+            node.drop_connection('does not implement AbstractConnection')
+        assert str(e.exception) == 'connection must implement AbstractConnection'
+
+    @patch.multiple(interfaces.AbstractConnection, __abstractmethods__=set())
+    def test_Node_add_connection_and_drop_connection_work(self):
+        node0 = classes.Node(self.address0)
+        node1 = classes.Node(self.address1)
+        connection = interfaces.AbstractConnection(set([node0, node1]))
+
+        # precondition
+        assert len(node0.connections) == 0
+
+        # test 1
+        node0.add_connection(connection)
+        assert len(node0.connections) == 1
+        assert connection in node0.connections
+
+        # test 2
+        node0.drop_connection(connection)
+        assert len(node0.connections) == 0
+
+    def test_Node_count_connections_returns_int_number_of_connections(self):
+        node = classes.Node.from_seed(self.seed0)
+        node.connections.add('substitute')
+        assert type(node.count_connections()) is int
+        assert node.count_connections() == len(node.connections)
+
+    def test_Node_receive_message_raises_TypeError_for_non_AbstractMessage_arg(self):
+        node = classes.Node(self.address0)
+
+        with self.assertRaises(TypeError) as e:
+            node.receive_message('does not implement AbstractMessage')
+        assert str(e.exception) == 'message must implement AbstractMessage'
 
     def test_Node_receive_message_drops_invalid_messages(self):
         debug_messages = []
@@ -450,6 +517,74 @@ class TestBasicClasses(unittest.TestCase):
         misc.deregister_debug_handler(custom_debugger)
         misc.register_debug_handler(print)
 
+    def test_Node_send_message_raises_TypeError_for_non_bytes_dst_or_msg(self):
+        node = classes.Node(self.address0)
+
+        with self.assertRaises(TypeError) as e:
+            node.send_message('not bytes dst', b'bytes msg')
+        assert str(e.exception) == 'dst must be bytes'
+
+        with self.assertRaises(TypeError) as e:
+            node.send_message(b'bytes dst', 'not bytes msg')
+        assert str(e.exception) == 'msg must be bytes'
+
+    def test_Node_send_message_raises_ValueError_if_no_skey_present(self):
+        node = classes.Node(self.address0)
+
+        with self.assertRaises(ValueError) as e:
+            node.send_message(b'bytes dst', b'bytes msg')
+        assert str(e.exception) == 'Cannot send a message without a SigningKey set.'
+
+    @patch.multiple(interfaces.AbstractConnection, __abstractmethods__=set())
+    def test_Node_send_message_queues_outbound_message_when_connection_present(self):
+        # setup
+        node0 = classes.Node.from_seed(self.seed0)
+        node1 = classes.Node(self.address1)
+        connection = interfaces.AbstractConnection([node0, node1])
+        node0.add_connection(connection)
+
+        # precondition
+        assert node0._outbound.qsize() == 0
+
+        # test
+        node0.send_message(node1.address, b'hello node1')
+        assert node0._outbound.qsize() == 1
+
+    def test_Node_send_message_drops_outbound_message_when_connection_missing(self):
+        # setup
+        node0 = classes.Node.from_seed(self.seed0)
+        node1 = classes.Node(self.address1)
+        connection = interfaces.AbstractConnection([node0, node1])
+        node0.add_connection(connection)
+        debug_message = ''
+        def debug_handler(msg: str):
+            nonlocal debug_message
+            debug_message = msg
+        misc.deregister_debug_handler(print)
+        misc.register_debug_handler(debug_handler)
+
+        # precondition
+        assert node0._outbound.qsize() == 0
+
+        # test
+        node0.send_message(self.address2, b'hello world')
+        assert node0._outbound.qsize() == 0
+        assert debug_message == 'cannot deliver message due to lack of connection'
+
+        # clean up
+        misc.deregister_debug_handler(debug_handler)
+        misc.register_debug_handler(print)
+
+    def test_Node_send_message_queues_outbound_message_when_no_connections_set(self):
+        node0 = classes.Node.from_seed(self.seed0)
+
+        # precondition
+        assert node0._outbound.qsize() == 0
+
+        # test
+        node0.send_message(self.address1, b'hello node1')
+        assert node0._outbound.qsize() == 1
+
     def test_Node_subscribe_raises_TypeError_for_non_AbstractTopic(self):
         node = classes.Node(self.address0)
         with self.assertRaises(TypeError) as e:
@@ -491,6 +626,32 @@ class TestBasicClasses(unittest.TestCase):
         node.publish(bulletin)
         assert node.action_count() == 1
         assert node._inbound.qsize() == 1
+
+    def test_Node_queue_action_raises_TypeError_for_non_AbstractAction_arg(self):
+        node = classes.Node.from_seed(self.seed0)
+
+        with self.assertRaises(TypeError) as e:
+            node.queue_action('does not implement AbstractAction')
+        assert str(e.exception) == 'act must implement AbstractAction'
+
+    @patch.multiple(interfaces.AbstractAction, __abstractmethods__=set())
+    def test_Node_queue_action_adds_AbstractAction_to_actions_queue(self):
+        node = classes.Node.from_seed(self.seed0)
+        action = interfaces.AbstractAction('do a thing', {})
+
+        # precondition
+        assert node._actions.qsize() == 0
+
+        # test
+        node.queue_action(action)
+        assert node._actions.qsize() == 1
+
+    def test_Node_action_count_returns_int_number_of_items_in_actions_queue(self):
+        node = classes.Node.from_seed(self.seed0)
+
+        node._actions.put('something')
+        assert type(node.action_count()) is int
+        assert node.action_count() == node._actions.qsize()
 
 
     # Neighbor tests
