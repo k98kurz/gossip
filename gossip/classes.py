@@ -314,6 +314,11 @@ class Action(AbstractAction):
         take by passing to the registered action handler.
     """
     def __init__(self, name: str, data: dict) -> None:
+        if type(name) is not str:
+            raise TypeError('name must be str')
+        if type(data) is not dict:
+            raise TypeError('data must be dict')
+
         self.name = name
         self.data = data
 
@@ -321,11 +326,13 @@ class Action(AbstractAction):
 class Connection(AbstractConnection):
     """Connection model represent an edge connecting two Nodes together."""
     def __init__(self, nodes: list[AbstractNode]) -> None:
-        if type(nodes) not in (list, set) or len(nodes) != 2:
-            raise Exception('a Connection must connect exactly 2 nodes')
+        if type(nodes) not in (list, set):
+            raise TypeError('nodes must be list or set')
+        if len(nodes) != 2:
+            raise ValueError('a Connection must connect exactly 2 nodes')
         for n in nodes:
             if not isinstance(n, AbstractNode):
-                raise Exception('a Connection must connect exactly 2 nodes')
+                raise TypeError('each node must implement AbstractNode')
 
         self.nodes = set(nodes) if type(nodes) is list else nodes
         self.data = {}

@@ -494,12 +494,54 @@ class TestBasicClasses(unittest.TestCase):
 
 
     # Neighbor tests
+    def test_Neighbor_implements_AbstractNode_and_isinstance_of_Node(self):
+        neighbor = classes.Neighbor(self.address1)
+        assert isinstance(neighbor, interfaces.AbstractNode)
+        assert isinstance(neighbor, classes.Node)
+
+    def test_Neighbor_has_address_vkey_and_empty_topics_followed(self):
+        neighbor = classes.Neighbor(self.address1)
+        assert hasattr(neighbor, 'address') and type(neighbor.address) is bytes
+        assert hasattr(neighbor, '_vkey') and type(neighbor._vkey) is VerifyKey
+        assert hasattr(neighbor, 'topics_followed') and type(neighbor.topics_followed) is set
+        assert len(neighbor.topics_followed) == 0
 
 
     # Action tests
+    def test_Action_init_raises_TypeError_for_non_str_name(self):
+        with self.assertRaises(TypeError) as e:
+            classes.Action(b'not a str', {})
+        assert str(e.exception) == 'name must be str'
+        classes.Action('str name', {})
+
+    def test_Action_init_raises_TypeError_for_non_dict_data(self):
+        with self.assertRaises(TypeError) as e:
+            classes.Action('str name', 'not dict data')
+        assert str(e.exception) == 'data must be dict'
+        classes.Action('str name', {'data': 'is dict'})
 
 
     # Connection tests
+    def test_Connection_init_raises_TypeError_for_non_set_or_list_input(self):
+        with self.assertRaises(TypeError) as e:
+            classes.Connection('not a list or set')
+        assert str(e.exception) == 'nodes must be list or set'
+
+    def test_Connection_init_raises_ValueError_for_incorrect_number_of_nodes(self):
+        with self.assertRaises(ValueError) as e:
+            classes.Connection(['just one node'])
+        assert str(e.exception) == 'a Connection must connect exactly 2 nodes'
+
+    def test_Connection_init_raises_TypeError_for_non_nodes(self):
+        with self.assertRaises(TypeError) as e:
+            classes.Connection(['not a node', 'also not a node'])
+        assert str(e.exception) == 'each node must implement AbstractNode'
+
+    def test_Connection_init_raises_no_errors_for_set_or_list_of_nodes(self):
+        node0 = classes.Node(self.address0)
+        node1 = classes.Node(self.address1)
+        classes.Connection([node0, node1])
+        classes.Connection(set([node0, node1]))
 
 
 if __name__ == '__main__':
