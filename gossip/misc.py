@@ -6,7 +6,8 @@ ENABLE_DEBUG = True
 DISPLAY_SHORT_ADDRESSES = True
 MESSAGE_TTL = 300
 DEBUG_HANDLERS = [print]
-DIFFICULTY_BITS = 9
+DIFFICULTY_BITS = 4
+TAPEHASH_CODE_SIZE = 256
 
 
 def format_address(address: bytes) -> str:

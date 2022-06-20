@@ -27,6 +27,10 @@ class TestMisc(unittest.TestCase):
         assert hasattr(misc, 'DIFFICULTY_BITS')
         assert type(misc.DIFFICULTY_BITS) is int
 
+    def test_TAPEHASH_CODE_SIZE_is_int(self):
+        assert hasattr(misc, 'TAPEHASH_CODE_SIZE')
+        assert type(misc.TAPEHASH_CODE_SIZE) is int
+
     def test_format_address_raises_TypeError_for_non_byte_arg(self):
         with self.assertRaises(TypeError) as e:
             misc.format_address(123)
