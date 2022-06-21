@@ -64,6 +64,7 @@ The code is reasonably SOLID and thoroughly tested.
 - [x] Globals and miscellaneous functions + tests
 - [x] Interfaces + tests
 - [x] Basic Classes + tests
+- [x] Example logical implementation
 - [ ] Example implementation using sockets and sqlite
 
 ## Installation
@@ -110,6 +111,11 @@ published as a package.
 - Action(AbstractAction)
 - Connection(AbstractConnection)
 
+## Examples
+
+Currently, only a logical (no network stack) example has been
+implemented. Run it with `python examples/logical.py {n_nodes=16}`. Type
+'?' and hit enter to get a list of available options.
 
 ## Network Stack
 
