@@ -9,10 +9,10 @@ from gossip.interfaces import (
     AbstractTopic,
     SupportsHandleAction,
     SupportsHandleMessage,
+    SupportsHandleRetrieveListQueryBulletin,
     SupportsSendMessage,
 )
 from gossip.misc import(
-    CONTENT_TTL,
     MESSAGE_TTL,
     TAPEHASH_CODE_SIZE,
     check_difficulty,
@@ -197,21 +197,28 @@ class Node(AbstractNode):
 
     def register_message_sender(self, sender: SupportsSendMessage) -> None:
         """Register the message sender."""
-        if not hasattr(sender, 'send') or not callable(sender.send):
+        if not isinstance(sender, SupportsSendMessage):
             raise TypeError('sender must fulfill SupportsSendMessage duck type')
         self._message_sender = sender
 
     def register_message_handler(self, handler: SupportsHandleMessage) -> None:
         """Register the incoming message handler."""
-        if not hasattr(handler, 'handle') or not callable(handler.handle):
+        if not isinstance(handler, SupportsHandleMessage):
             raise TypeError('handler must fulfill SupportsHandleMessage duck type')
         self._message_handler = handler
 
     def register_action_handler(self, handler: SupportsHandleAction) -> None:
         """Register the action handler."""
-        if not hasattr(handler, 'handle') or not callable(handler.handle):
+        if not isinstance(handler, SupportsHandleAction):
             raise TypeError('handler must fulfill SupportsHandleAction duck type')
         self._action_handler = handler
+
+    def register_bulletin_handler(self, handler: SupportsHandleRetrieveListQueryBulletin) -> None:
+        """Register the bulletin handler."""
+        if not isinstance(handler, SupportsHandleRetrieveListQueryBulletin):
+            raise TypeError('handler must fulfill SupportsHandleRetrieveListQueryBulletin duck type')
+
+        self._bulletin_handler = handler
 
     def add_connection(self, connection: AbstractConnection) -> None:
         """Add the specified connection."""
@@ -305,6 +312,8 @@ class Node(AbstractNode):
             self._message_handler.handle(self._inbound.get())
         if self._actions.qsize() > 0 and self._action_handler is not None:
             self._action_handler.handle(self._actions.get())
+        if self._new_bulletins.qsize() > 0 and self._bulletin_handler is not None:
+            self._bulletin_handler.handle(self._new_bulletins.get())
 
     def action_count(self) -> int:
         """Count the size of pending messages and actions."""

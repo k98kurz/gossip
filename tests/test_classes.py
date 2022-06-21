@@ -236,7 +236,6 @@ class TestBasicClasses(unittest.TestCase):
         node = classes.Node(self.address0)
         assert hasattr(node, 'address') and type(node.address) is bytes
         assert hasattr(node, 'content_seen') and type(node.content_seen) is set
-        assert hasattr(node, 'bulletins') and type(node.bulletins) is set
         assert hasattr(node, 'topics_followed') and type(node.topics_followed) is set
         assert hasattr(node, 'connections') and type(node.connections) is set
         assert hasattr(node, 'data') and type(node.data) is dict
@@ -246,15 +245,16 @@ class TestBasicClasses(unittest.TestCase):
         assert hasattr(node, '_inbound') and type(node._inbound) is SimpleQueue
         assert hasattr(node, '_outbound') and type(node._outbound) is SimpleQueue
         assert hasattr(node, '_actions') and type(node._actions) is SimpleQueue
+        assert hasattr(node, '_new_bulletins') and type(node._new_bulletins) is SimpleQueue
         assert hasattr(node, '_message_sender') and node._message_sender is None
         assert hasattr(node, '_message_handler') and node._message_handler is None
         assert hasattr(node, '_action_handler') and node._action_handler is None
+        assert hasattr(node, '_bulletin_handler') and node._bulletin_handler is None
 
     def test_Node_from_seed_instantiates_with_specified_properties(self):
         node = classes.Node.from_seed(self.seed0)
         assert hasattr(node, 'address') and type(node.address) is bytes
         assert hasattr(node, 'content_seen') and type(node.content_seen) is set
-        assert hasattr(node, 'bulletins') and type(node.bulletins) is set
         assert hasattr(node, 'topics_followed') and type(node.topics_followed) is set
         assert hasattr(node, 'connections') and type(node.connections) is set
         assert hasattr(node, 'data') and type(node.data) is dict
@@ -264,9 +264,11 @@ class TestBasicClasses(unittest.TestCase):
         assert hasattr(node, '_inbound') and type(node._inbound) is SimpleQueue
         assert hasattr(node, '_outbound') and type(node._outbound) is SimpleQueue
         assert hasattr(node, '_actions') and type(node._actions) is SimpleQueue
+        assert hasattr(node, '_new_bulletins') and type(node._new_bulletins) is SimpleQueue
         assert hasattr(node, '_message_sender') and node._message_sender is None
         assert hasattr(node, '_message_handler') and node._message_handler is None
         assert hasattr(node, '_action_handler') and node._action_handler is None
+        assert hasattr(node, '_bulletin_handler') and node._bulletin_handler is None
 
     def test_Node_instance_not_from_seed_cannot_sign_messages(self):
         node = classes.Node(self.address0)
@@ -356,6 +358,16 @@ class TestBasicClasses(unittest.TestCase):
             node.register_message_handler(Thing())
         assert str(e.exception) == 'handler must fulfill SupportsHandleMessage duck type'
 
+    def test_Node_register_bulletin_handler_raises_TypeError_for_invalid_arg(self):
+        # setup
+        node = classes.Node(self.address0)
+        class Thing:
+            ...
+
+        with self.assertRaises(TypeError) as e:
+            node.register_bulletin_handler(Thing())
+        assert str(e.exception) == 'handler must fulfill SupportsHandleRetrieveListQueryBulletin duck type'
+
     @patch.multiple(interfaces.AbstractAction, __abstractmethods__=set())
     def test_Node_register_message_handler_handles_messages_on_process(self):
         class MessageHandler(interfaces.SupportsHandleMessage):
@@ -412,16 +424,19 @@ class TestBasicClasses(unittest.TestCase):
             def __init__(self, node: interfaces.AbstractNode):
                 self.node = node
 
-            def handle(self, act: interfaces.AbstractAction):
-                if act.name == 'store_and_forward':
-                    if sha256(act.data['msg']).digest() not in self.node.content_seen:
+            def handle(self, action: interfaces.AbstractAction):
+                if action.name == 'store_and_forward':
+                    self.store_and_forward(action)
+
+            def store_and_forward(self, action: interfaces.AbstractAction) -> None:
+                if sha256(action.data['msg']).digest() not in self.node.content_seen:
                         nonlocal actions_handled
-                        actions_handled.append(act)
-                        self.node.content_seen.add(sha256(act.data['msg']).digest())
+                        actions_handled.append(action)
+                        self.node.content_seen.add(sha256(action.data['msg']).digest())
                         if len(self.node.connections):
                             for c in self.node.connections:
                                 neighbor = [n for n in c.nodes if n is not self.node][0]
-                                self.node.send_message(neighbor.address, act.data['msg'])
+                                self.node.send_message(neighbor.address, action.data['msg'])
 
         # setup
         node = classes.Node.from_seed(self.seed0)
