@@ -64,8 +64,9 @@ The code is reasonably SOLID and thoroughly tested.
 - [x] Globals and miscellaneous functions + tests
 - [x] Interfaces + tests
 - [x] Basic Classes + tests
-- [x] Example logical implementation
-- [ ] Example implementation using sockets and sqlite
+- [x] Example logical synchronous implementation
+- [ ] Example logical asynchronous implementation
+- [ ] Example asynchronous implementation using sockets and sqlite
 
 ## Installation
 

@@ -33,6 +33,11 @@ from gossip.misc import (
 )
 
 
+"""Logic-only example of how a network of nodes pass messages/bulletins
+    between each other. Runs synchronously for simplicity.
+"""
+
+
 @dataclass
 class ActionHandler(SupportsHandleAction):
     node: Node
