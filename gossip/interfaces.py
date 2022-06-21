@@ -6,21 +6,24 @@ from random import randint
 from time import time
 from nacl.signing import SigningKey, VerifyKey, SignedMessage
 from queue import SimpleQueue
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 
+@runtime_checkable
 class SupportsSendMessage(Protocol):
     """Duck type protocol for message sender."""
     def send(self, msg: AbstractMessage) -> None:
         ...
 
 
+@runtime_checkable
 class SupportsHandleMessage(Protocol):
     """Duck type protocol for incoming message handler."""
     def handle(self, msg: AbstractMessage) -> None:
         ...
 
 
+@runtime_checkable
 class SupportsHandleAction(Protocol):
     """Duck type protocol for action handler."""
     def handle(self, action: AbstractAction) -> None:
@@ -30,9 +33,19 @@ class SupportsHandleAction(Protocol):
         ...
 
 
-class SupportsHandleSubscribedTopic(Protocol):
-    """Duck type protocol for subscribed topic."""
+@runtime_checkable
+class SupportsHandleRetrieveListQueryBulletin(Protocol):
+    """Duck type protocol for handling bulletins of subscribed topics."""
     def handle(self, bulletin: AbstractBulletin) -> None:
+        ...
+
+    def retrieve(self, topic_id: bytes, content_id: bytes) -> AbstractBulletin:
+        ...
+
+    def list(self, topic_id: bytes) -> list[bytes]:
+        ...
+
+    def query(self, query: dict) -> set[AbstractBulletin]:
         ...
 
 
@@ -194,7 +207,6 @@ class AbstractBulletin(ABC):
 class AbstractNode(ABC):
     address: bytes
     content_seen: set[AbstractBulletin] = field(default_factory=set)
-    bulletins: set[AbstractBulletin] = field(default_factory=set)
     topics_followed: set[AbstractTopic] = field(default_factory=set)
     connections: set[AbstractConnection] = field(default_factory=set)
     data: dict = field(default_factory=dict)
@@ -203,10 +215,12 @@ class AbstractNode(ABC):
     _vkey: VerifyKey = None
     _inbound: SimpleQueue = field(default_factory=SimpleQueue)
     _outbound: SimpleQueue = field(default_factory=SimpleQueue)
+    _new_bulletins: SimpleQueue = field(default_factory=SimpleQueue)
     _actions: SimpleQueue = field(default_factory=SimpleQueue)
     _message_sender: SupportsSendMessage = None
     _message_handler: SupportsHandleMessage = None
     _action_handler: SupportsHandleAction = None
+    _bulletin_handler: SupportsHandleRetrieveListQueryBulletin = None
 
     @abstractclassmethod
     def from_seed(cls, seed: bytes) -> AbstractNode:
@@ -225,15 +239,19 @@ class AbstractNode(ABC):
         pass
 
     @abstractmethod
-    def register_message_sender(self, sndr: SupportsSendMessage) -> None:
+    def register_message_sender(self, sender: SupportsSendMessage) -> None:
         pass
 
     @abstractmethod
-    def register_message_handler(self, hndlr: SupportsHandleMessage) -> None:
+    def register_message_handler(self, handler: SupportsHandleMessage) -> None:
         pass
 
     @abstractmethod
-    def register_action_handler(self, hndlr: SupportsHandleAction) -> None:
+    def register_action_handler(self, handler: SupportsHandleAction) -> None:
+        pass
+
+    @abstractmethod
+    def register_bulletin_handler(self, handler: SupportsHandleRetrieveListQueryBulletin) -> None:
         pass
 
     @abstractmethod
@@ -285,6 +303,7 @@ class AbstractNode(ABC):
             raise TypeError('bulletin must implement AbstractBulletin')
 
         self.content_seen.add(bulletin)
+        self._new_bulletins.put(bulletin)
 
     def delete_old_content(self) -> int:
         to_delete = set()
