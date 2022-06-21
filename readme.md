@@ -65,7 +65,7 @@ The code is reasonably SOLID and thoroughly tested.
 - [x] Interfaces + tests
 - [x] Basic Classes + tests
 - [x] Example logical synchronous implementation
-- [ ] Example logical asynchronous implementation
+- [x] Example logical asynchronous implementation
 - [ ] Example asynchronous implementation using sockets and sqlite
 
 ## Installation
@@ -81,6 +81,8 @@ pip install -r requirements.txt
 ```
 
 On Windows, you may have to run `source venv/Scripts/activate`.
+
+To run the asynchronous example, also run `pip install prompt_toolkit`.
 
 These instructions will change once development is complete and the module is
 published as a package.
@@ -114,9 +116,13 @@ published as a package.
 
 ## Examples
 
-Currently, only a logical (no network stack) example has been
-implemented. Run it with `python examples/logical.py {n_nodes=16}`. Type
-'?' and hit enter to get a list of available options.
+Currently, only logical (no network stack) examples have been
+implemented. Run the synchronous example with
+`python examples/logical.py {n_nodes=16}`. Run the asynchronous example
+with `python examples/async.py {n_nodes=16}`.
+
+Type '?' and hit enter to get a list of available options for all
+examples.
 
 ## Network Stack
 
