@@ -358,16 +358,6 @@ class TestBasicClasses(unittest.TestCase):
             node.register_message_handler(Thing())
         assert str(e.exception) == 'handler must fulfill SupportsHandleMessage duck type'
 
-    def test_Node_register_bulletin_handler_raises_TypeError_for_invalid_arg(self):
-        # setup
-        node = classes.Node(self.address0)
-        class Thing:
-            ...
-
-        with self.assertRaises(TypeError) as e:
-            node.register_bulletin_handler(Thing())
-        assert str(e.exception) == 'handler must fulfill SupportsHandleRetrieveListQueryBulletin duck type'
-
     @patch.multiple(interfaces.AbstractAction, __abstractmethods__=set())
     def test_Node_register_message_handler_handles_messages_on_process(self):
         class MessageHandler(interfaces.SupportsHandleMessage):
@@ -456,6 +446,76 @@ class TestBasicClasses(unittest.TestCase):
         assert node.action_count() == 1
         assert node._actions.qsize() == 0
         assert node._outbound.qsize() == 1
+
+    def test_Node_register_bulletin_handler_raises_TypeError_for_invalid_arg(self):
+        # setup
+        node = classes.Node(self.address0)
+        class Thing:
+            ...
+
+        with self.assertRaises(TypeError) as e:
+            node.register_bulletin_handler(Thing())
+        assert str(e.exception) == 'handler must fulfill SupportsHandleRetrieveListQueryBulletin duck type'
+
+    def test_Node_register_buulletin_handler_handles_new_bulletins_on_process(self):
+        bulletins_handled = []
+        class BulletinHandler(interfaces.SupportsHandleRetrieveListQueryBulletin):
+            node: interfaces.AbstractNode
+            storage: list[interfaces.AbstractBulletin]
+
+            def __init__(self, node: interfaces.AbstractNode) -> None:
+                if not isinstance(node, interfaces.AbstractNode):
+                    raise TypeError('node must implement AbstractNode')
+                self.node = node
+                self.storage = []
+
+            def handle(self, bulletin: interfaces.AbstractBulletin) -> None:
+                if bulletin.topic in self.node.topics_followed:
+                    self.storage.append(bulletin)
+                nonlocal bulletins_handled
+                bulletins_handled.append(bulletin)
+
+            def retrieve(self, topic_id: bytes, content_id: bytes) -> interfaces.AbstractBulletin:
+                result = [b for b in self.storage if b.topic.id == topic_id and b.content.id == content_id]
+                return result[0] if len(result) else None
+
+            def list(self, topic_id: bytes) -> list[bytes]:
+                return [b for b in self.storage if b.topic.id == topic_id]
+
+            def query(self, query: dict) -> set[interfaces.AbstractBulletin]:
+                return self.storage
+
+        # setup
+        node = classes.Node.from_seed(self.seed0)
+        topic0 = classes.Topic.from_descriptor(b'apparently uninteresting')
+        topic1 = classes.Topic.from_descriptor(b'apparently interesting')
+        content = classes.Content.from_content(b'this is some kind of information')
+        bulletin0 = classes.Bulletin(topic0, content)
+        bulletin1 = classes.Bulletin(topic1, content)
+        node.register_bulletin_handler(BulletinHandler(node))
+        node.subscribe(topic1)
+
+        # preconditions
+        assert len(bulletins_handled) == 0
+        assert len(node.content_seen) == 0
+        assert node._new_bulletins.qsize() == 0
+
+        # test 1
+        node.mark_as_seen(bulletin0)
+        assert node.action_count() == 1
+        assert node._new_bulletins.qsize() == 1
+        node.process()
+        assert node.action_count() == 0
+        assert len(node._bulletin_handler.storage) == 0
+        assert len(bulletins_handled) == 1
+
+        # test 2
+        node.mark_as_seen(bulletin1)
+        assert node.action_count() == 1
+        node.process()
+        assert node.action_count() == 0
+        assert len(node._bulletin_handler.storage) == 1
+        assert len(bulletins_handled) == 2
 
     def test_Node_add_connection_raises_TypeError_on_non_AbstractConnection_arg(self):
         node = classes.Node(self.address0)

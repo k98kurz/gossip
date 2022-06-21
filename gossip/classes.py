@@ -317,7 +317,8 @@ class Node(AbstractNode):
 
     def action_count(self) -> int:
         """Count the size of pending messages and actions."""
-        return self._outbound.qsize() + self._inbound.qsize() + self._actions.qsize()
+        return self._outbound.qsize() + self._inbound.qsize() + \
+            self._actions.qsize() + self._new_bulletins.qsize()
 
 
 class Neighbor(Node):
