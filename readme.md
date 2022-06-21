@@ -64,7 +64,7 @@ The code is reasonably SOLID and thoroughly tested.
 - [x] Globals and miscellaneous functions + tests
 - [x] Interfaces + tests
 - [x] Basic Classes + tests
-- [ ] Example implementation using sockets
+- [ ] Example implementation using sockets and sqlite
 
 ## Installation
 
@@ -83,13 +83,38 @@ On Windows, you may have to run `source venv/Scripts/activate`.
 These instructions will change once development is complete and the module is
 published as a package.
 
-## Models and Types
+## Classes and Interfaces
 
-@todo
+### Interfaces
+
+- SupportsSendMessage(Protocol)
+- SupportsHandleMessage(Protocol)
+- SupportsHandleAction(Protocol)
+- SupportsHandleRetrieveListQueryBulletin(Protocol)
+- AbstractMessage(ABC)
+- AbstractContent(ABC)
+- AbstractConnection(ABC)
+- AbstractAction(ABC)
+- AbstractTopic(ABC)
+- AbstractBulletin(ABC)
+- AbstractNode(ABC)
+
+### Classes
+
+- Message(AbstractMessage)
+- Content(AbstractContent)
+- Topic(AbstractTopic)
+- Bulletin(AbstractBulletin)
+- Node(AbstractNode)
+- Neighbor(Node)
+- Action(AbstractAction)
+- Connection(AbstractConnection)
+
 
 ## Network Stack
 
-@todo
+There is currently no network stack implemented. An example network
+stack using sockets and sqlite is the final unfinished task.
 
 ## Tests
 
