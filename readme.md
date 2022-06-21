@@ -80,9 +80,10 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-On Windows, you may have to run `source venv/Scripts/activate`.
+On Windows, you may have to run `source venv/Scripts/activate` instead
+of `source venv/bin/activate`.
 
-To run the asynchronous example, also run `pip install prompt_toolkit`.
+To run the examples, also run `pip install -r optional_requirements.txt`.
 
 These instructions will change once development is complete and the module is
 published as a package.
