@@ -175,7 +175,7 @@ def action_count(nodes: list[Node]):
 
 def main(node_count: int):
     # setup
-    set_difficulty(1)
+    set_difficulty(1) # just for demonstration purposes
     topic = Topic.from_descriptor(b'test channel')
     topic_handler = lambda bulletin: debug(f'topic handler invoked for {format_address(bulletin.topic.id)}.{format_address(bulletin.content.id)}')
     nodes = [Node.from_seed(token_bytes(32)) for i in range(node_count)]
@@ -216,9 +216,7 @@ def main(node_count: int):
         elif command in ('message', 'm'):
             src = nodes[randint(0, len(nodes)-1)]
             bulletin = Bulletin(topic, Content.from_content(bytes(data, 'utf-8')))
-            message = Message(src.address, src.address, bulletin.pack())
-            message.encrypt().hashcash().sign(src._skey)
-            src.receive_message(message)
+            src.queue_action(Action('store_and_forward', {'bulletin': bulletin}))
         elif command in ('d', 'debug'):
             print("debug enabled" if toggle_debug() else "debug disabled")
         elif command in ('s', 'short'):
