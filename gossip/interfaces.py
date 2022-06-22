@@ -177,6 +177,7 @@ class AbstractBulletin(ABC):
     topic: AbstractTopic
     content: AbstractContent
     ts: int = field(default_factory=lambda: int(time()))
+    nonce: int = field(default_factory=lambda: randint(0, 2**16-1))
 
     @abstractmethod
     def __bytes__(self) -> bytes:
@@ -189,10 +190,18 @@ class AbstractBulletin(ABC):
         return hash(self) == hash(other)
 
     def get_header(self) -> bytes:
-        return self.topic.id + self.content.id
+        return self.topic.id + self.content.id + self.ts.to_bytes(4, 'big') + self.nonce.to_bytes(4, 'big')
 
     def expired(self) -> bool:
         return time() >= self.ts + CONTENT_TTL
+
+    @abstractmethod
+    def check_hash(self) -> bool:
+        pass
+
+    @abstractmethod
+    def hashcash(self) -> AbstractBulletin:
+        pass
 
     @abstractmethod
     def pack(self) -> bytes:

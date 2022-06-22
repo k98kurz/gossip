@@ -7,7 +7,8 @@ DISPLAY_SHORT_ADDRESSES = True
 CONTENT_TTL = 3600
 MESSAGE_TTL = 300
 DEBUG_HANDLERS = [print]
-DIFFICULTY_BITS = 7
+MESSAGE_DIFFICULTY = 1
+BULLETIN_DIFFICULTY = 7
 TAPEHASH_CODE_SIZE = 64
 
 
@@ -57,8 +58,8 @@ def toggle_debug() -> bool:
 def set_difficulty(difficulty: int) -> None:
     if type(difficulty) is not int:
         raise TypeError('difficulty must be an int')
-    global DIFFICULTY_BITS
-    DIFFICULTY_BITS = difficulty
+    global BULLETIN_DIFFICULTY
+    BULLETIN_DIFFICULTY = difficulty
 
 def calculate_difficulty(digest: bytes, bigendian: bool = True) -> int:
     """Calculate the difficulty (number of preceding null bits)."""
@@ -78,22 +79,26 @@ def calculate_difficulty(digest: bytes, bigendian: bool = True) -> int:
     # difficulty achieved is the preceeding null bits
     return length * 8 - trailing_bits
 
-def check_difficulty(digest: bytes, bigendian: bool = True) -> bool:
-    """Checks if a digest meets the minimum difficulty threshold (preceeding null bits)."""
+def check_difficulty(digest: bytes, target: int, bigendian: bool = True) -> bool:
+    """Checks if a digest meets the target difficulty threshold (preceeding null bits)."""
     if type(digest) is not bytes:
         raise TypeError('digest must be bytes')
 
     # prepare variables
-    global DIFFICULTY_BITS
     number = int.from_bytes(digest, byteorder='big' if bigendian else 'little')
     length = len(digest)
 
     # raise exception if difficulty is impossible to achieve
-    if DIFFICULTY_BITS > length * 8:
+    if target > length * 8:
         raise ValueError('Bit length of input must be less than target difficulty')
 
-    # shift off all but {DIFFICULTY_BITS} preceding bits
-    preceding_bits = number >> (length * 8 - DIFFICULTY_BITS)
+    # shift off all but {BULLETIN_DIFFICULTY} preceding bits
+    preceding_bits = number >> (length * 8 - target)
 
     # it meets the difficulty if preceding bits are 0
     return preceding_bits == 0
+
+def check_bulletin_difficulty(digest: bytes, bigendian: bool = True) -> bool:
+    """Checks if a digest meets the BULLETIN_DIFFICULTY threshold (preceeding null bits)."""
+    global BULLETIN_DIFFICULTY
+    return check_difficulty(digest, BULLETIN_DIFFICULTY, bigendian)

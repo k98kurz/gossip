@@ -27,9 +27,13 @@ class TestMisc(unittest.TestCase):
     def test_DEBUG_HANLDERS_contains_print(self):
         assert print in misc.DEBUG_HANDLERS
 
-    def test_DIFFICULTY_BITS_is_int(self):
-        assert hasattr(misc, 'DIFFICULTY_BITS')
-        assert type(misc.DIFFICULTY_BITS) is int
+    def test_MESSAGE_DIFFICULTY_is_int(self):
+        assert hasattr(misc, 'MESSAGE_DIFFICULTY')
+        assert type(misc.MESSAGE_DIFFICULTY) is int
+
+    def test_BULLETIN_DIFFICULTY_is_int(self):
+        assert hasattr(misc, 'BULLETIN_DIFFICULTY')
+        assert type(misc.BULLETIN_DIFFICULTY) is int
 
     def test_TAPEHASH_CODE_SIZE_is_int(self):
         assert hasattr(misc, 'TAPEHASH_CODE_SIZE')
@@ -109,6 +113,15 @@ class TestMisc(unittest.TestCase):
             misc.set_difficulty('abc')
         assert str(e.exception) == 'difficulty must be an int'
 
+    def test_set_difficulty_sets_BULLETIN_DIFFICULTY_to_int_arg(self):
+        original_diff = misc.BULLETIN_DIFFICULTY
+        misc.set_difficulty(original_diff + 1)
+        assert original_diff != misc.BULLETIN_DIFFICULTY
+        assert misc.BULLETIN_DIFFICULTY == original_diff + 1
+
+        # reset
+        misc.set_difficulty(original_diff)
+
     def test_calculate_difficulty_raises_TypeError_for_non_bytes_arg(self):
         with self.assertRaises(TypeError) as e:
             misc.calculate_difficulty(1234)
@@ -121,17 +134,27 @@ class TestMisc(unittest.TestCase):
 
     def test_check_difficulty_raises_TypeError_for_non_bytes_arg(self):
         with self.assertRaises(TypeError) as e:
-            misc.check_difficulty(1234)
+            misc.check_difficulty(1234, 1)
         assert str(e.exception) == 'digest must be bytes'
 
-    def test_check_difficulty_end_to_end(self):
+    def test_check_difficulty_raises_TypeError_for_non_bytes_arg(self):
+        with self.assertRaises(TypeError) as e:
+            misc.check_bulletin_difficulty(1234)
+        assert str(e.exception) == 'digest must be bytes'
+
+    def test_check_bulletin_difficulty_raises_TypeError_for_non_bytes_arg(self):
+        with self.assertRaises(TypeError) as e:
+            misc.check_bulletin_difficulty(1234)
+        assert str(e.exception) == 'digest must be bytes'
+
+    def test_check_bulletin_difficulty_end_to_end(self):
         misc.set_difficulty(8)
-        assert misc.check_difficulty(b'\x00')
-        assert not misc.check_difficulty(b'\x01')
+        assert misc.check_bulletin_difficulty(b'\x00')
+        assert not misc.check_bulletin_difficulty(b'\x01')
 
         misc.set_difficulty(5)
-        assert misc.check_difficulty(b'\x07')
-        assert not misc.check_difficulty(b'\x08')
+        assert misc.check_bulletin_difficulty(b'\x07')
+        assert not misc.check_bulletin_difficulty(b'\x08')
 
 
 if __name__ == '__main__':

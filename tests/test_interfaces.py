@@ -47,7 +47,7 @@ class TestInterfaces(unittest.TestCase):
     # AbstractBulletin test
     @patch.multiple(interfaces.AbstractTopic, __abstractmethods__=set())
     @patch.multiple(interfaces.AbstractBulletin, __abstractmethods__=set())
-    def test_AbstractBulletin_instantiates_with_topic_and_content(self):
+    def test_AbstractBulletin_instantiates_with_topic_content_ts_and_nonce(self):
         id = b'123'
         descriptor = b'321'
         content = b'hello world'
@@ -55,6 +55,8 @@ class TestInterfaces(unittest.TestCase):
         bulletin = interfaces.AbstractBulletin(topic, content)
         assert bulletin.topic == topic
         assert bulletin.content == content
+        assert hasattr(bulletin, 'ts') and type(bulletin.ts) is int
+        assert hasattr(bulletin, 'nonce') and type(bulletin.nonce) is int
 
 
     # AbstractAction test

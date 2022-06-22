@@ -193,13 +193,14 @@ class TestBasicClasses(unittest.TestCase):
         assert str(e.exception) == 'content must implement AbstractContent'
 
     @patch.multiple(interfaces.AbstractTopic, __abstractmethods__=set())
-    def test_Bulletin_instantiates_with_topic_content_and_ts(self):
+    def test_Bulletin_instantiates_with_topic_content_ts_and_nonce(self):
         topic = interfaces.AbstractTopic(b'123', b'descriptor')
         content = classes.Content.from_content(b'hello world, this is ' + self.address0)
         bulletin = classes.Bulletin(topic, content)
         assert hasattr(bulletin, 'topic') and isinstance(bulletin.topic, interfaces.AbstractTopic)
         assert hasattr(bulletin, 'content') and isinstance(bulletin.content, interfaces.AbstractContent)
         assert hasattr(bulletin, 'ts') and type(bulletin.ts) is int
+        assert hasattr(bulletin, 'nonce') and type(bulletin.nonce) is int
 
     @patch.multiple(interfaces.AbstractTopic, __abstractmethods__=set())
     def test_Bulletin_bytes_hash_methods_return_proper_types(self):
@@ -210,6 +211,31 @@ class TestBasicClasses(unittest.TestCase):
         assert type(bulletin.__bytes__()) is bytes
         assert hasattr(bulletin, '__hash__') and callable(bulletin.__hash__)
         assert type(bulletin.__hash__()) is int
+
+    @patch.multiple(interfaces.AbstractTopic, __abstractmethods__=set())
+    def test_Bulletin_check_hash_returns_bool(self):
+        topic = interfaces.AbstractTopic(b'123', b'descriptor')
+        content = classes.Content.from_content(b'hello world, this is ' + self.address0)
+        bulletin = classes.Bulletin(topic, content)
+        assert hasattr(bulletin, 'check_hash') and callable(bulletin.check_hash)
+        assert type(bulletin.check_hash()) is bool
+
+    @patch.multiple(interfaces.AbstractTopic, __abstractmethods__=set())
+    def test_Bulletin_hashcash_changes_nonce_and_makes_check_hash_return_true(self):
+        topic = interfaces.AbstractTopic(b'123', b'descriptor')
+        content = classes.Content.from_content(b'hello world, this is ' + self.address0)
+        bulletin = classes.Bulletin(topic, content)
+        assert hasattr(bulletin, 'hashcash') and callable(bulletin.hashcash)
+
+        # ensure the nonce is wrong
+        if bulletin.check_hash():
+            bulletin.nonce -= 1
+
+        assert not bulletin.check_hash()
+        nonce0 = bulletin.nonce
+        assert isinstance(bulletin.hashcash(), interfaces.AbstractBulletin)
+        assert bulletin.nonce != nonce0
+        assert bulletin.check_hash()
 
     @patch.multiple(interfaces.AbstractTopic, __abstractmethods__=set())
     def test_Bulletin_pack_and_unpack_return_correct_types_and_values(self):
@@ -225,6 +251,8 @@ class TestBasicClasses(unittest.TestCase):
         assert type(packed) is bytes
         assert packed[:32] == topic_id
         assert packed[32:64] == content.id
+        assert int.from_bytes(packed[64:68], 'big') == bulletin.ts
+        assert int.from_bytes(packed[68:72], 'big') == bulletin.nonce
 
         unpacked = classes.Bulletin.unpack(packed)
         assert type(unpacked) is classes.Bulletin
