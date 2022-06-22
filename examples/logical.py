@@ -58,7 +58,8 @@ class ActionHandler(SupportsHandleAction):
             # forward
             for c in self.node.connections:
                 dst = [n for n in c.nodes if n.address != self.node.address][0]
-                self.node.send_message(dst.address, bytes(action.data['bulletin']))
+                if dst != action.data['src']:
+                    self.node.send_message(dst.address, bytes(action.data['bulletin']))
         else:
             debug(f"ActionHandler.handle(): store_and_forward skipped for seen message")
 
@@ -153,7 +154,7 @@ class MessageHandler(SupportsHandleMessage):
         debug(f'MessageHandler.handle(): {format_address(bytes(msg.body))}')
         bulletin = Bulletin.unpack(msg.body)
         if bulletin.check_hash():
-            self.node.queue_action(Action('store_and_forward', {'bulletin': bulletin}))
+            self.node.queue_action(Action('store_and_forward', {'bulletin': bulletin, 'src': msg.src}))
         else:
             debug(f'MessageHandler.handle(): bulletin dropped for invalid hash')
 
@@ -224,7 +225,7 @@ def main(node_count: int):
         elif command in ('message', 'm'):
             src = nodes[randint(0, len(nodes)-1)]
             bulletin = Bulletin(topic, Content.from_content(bytes(data, 'utf-8'))).hashcash()
-            src.queue_action(Action('store_and_forward', {'bulletin': bulletin}))
+            src.queue_action(Action('store_and_forward', {'bulletin': bulletin, 'src': b''}))
         elif command in ('d', 'debug'):
             print("debug enabled" if toggle_debug() else "debug disabled")
         elif command in ('s', 'short'):
