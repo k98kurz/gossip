@@ -190,7 +190,7 @@ class AbstractBulletin(ABC):
         return hash(self) == hash(other)
 
     def get_header(self) -> bytes:
-        return self.topic.id + self.content.id
+        return self.topic.id + self.content.id + self.ts.to_bytes(4, 'big') + self.nonce.to_bytes(4, 'big')
 
     def expired(self) -> bool:
         return time() >= self.ts + CONTENT_TTL
