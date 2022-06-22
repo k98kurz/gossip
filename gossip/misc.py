@@ -7,7 +7,8 @@ DISPLAY_SHORT_ADDRESSES = True
 CONTENT_TTL = 3600
 MESSAGE_TTL = 300
 DEBUG_HANDLERS = [print]
-DIFFICULTY_BITS = 7
+MESSAGE_DIFFICULTY = 1
+BULLETIN_DIFFICULTY = 7
 TAPEHASH_CODE_SIZE = 64
 
 
@@ -57,8 +58,8 @@ def toggle_debug() -> bool:
 def set_difficulty(difficulty: int) -> None:
     if type(difficulty) is not int:
         raise TypeError('difficulty must be an int')
-    global DIFFICULTY_BITS
-    DIFFICULTY_BITS = difficulty
+    global BULLETIN_DIFFICULTY
+    BULLETIN_DIFFICULTY = difficulty
 
 def calculate_difficulty(digest: bytes, bigendian: bool = True) -> int:
     """Calculate the difficulty (number of preceding null bits)."""
@@ -84,16 +85,16 @@ def check_difficulty(digest: bytes, bigendian: bool = True) -> bool:
         raise TypeError('digest must be bytes')
 
     # prepare variables
-    global DIFFICULTY_BITS
+    global BULLETIN_DIFFICULTY
     number = int.from_bytes(digest, byteorder='big' if bigendian else 'little')
     length = len(digest)
 
     # raise exception if difficulty is impossible to achieve
-    if DIFFICULTY_BITS > length * 8:
+    if BULLETIN_DIFFICULTY > length * 8:
         raise ValueError('Bit length of input must be less than target difficulty')
 
-    # shift off all but {DIFFICULTY_BITS} preceding bits
-    preceding_bits = number >> (length * 8 - DIFFICULTY_BITS)
+    # shift off all but {BULLETIN_DIFFICULTY} preceding bits
+    preceding_bits = number >> (length * 8 - BULLETIN_DIFFICULTY)
 
     # it meets the difficulty if preceding bits are 0
     return preceding_bits == 0
