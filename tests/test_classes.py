@@ -1,6 +1,6 @@
 from hashlib import sha256
 from queue import SimpleQueue
-from context import classes, interfaces, misc
+from context import classes, interfaces, misc, tapehash
 from nacl.signing import SigningKey, VerifyKey
 from unittest.mock import patch
 import unittest
@@ -577,6 +577,33 @@ class TestBasicClasses(unittest.TestCase):
         node0.drop_connection(connection)
         assert len(node0.connections) == 0
 
+    @patch.multiple(interfaces.AbstractConnection, __abstractmethods__=set())
+    def test_Node_add_connection_adds_difficulty_threshold_to_connection(self):
+        node0 = classes.Node(self.address0)
+        node1 = classes.Node(self.address1)
+        connection = interfaces.AbstractConnection(set([node0, node1]))
+
+        # precondition
+        assert 'difficulty' not in connection.data
+
+        # test
+        node0.add_connection(connection)
+        assert 'difficulty' in connection.data
+        assert type(connection.data['difficulty']) is int
+
+    @patch.multiple(interfaces.AbstractConnection, __abstractmethods__=set())
+    def test_Node_get_message_difficulty_gets_difficulty_for_connection(self):
+        node0 = classes.Node(self.address0)
+        node1 = classes.Node(self.address1)
+        connection = interfaces.AbstractConnection(set([node0, node1]))
+        node0.add_connection(connection)
+        connection.data['difficulty'] += 3
+
+        # test
+        assert hasattr(node0, 'get_message_difficulty') and callable(node0.get_message_difficulty)
+        assert type(node0.get_message_difficulty(node1.address)) is int
+        assert node0.get_message_difficulty(node1.address) == connection.data['difficulty']
+
     def test_Node_count_connections_returns_int_number_of_connections(self):
         node = classes.Node.from_seed(self.seed0)
         node.connections.add('substitute')
@@ -701,6 +728,22 @@ class TestBasicClasses(unittest.TestCase):
         # test
         node0.send_message(self.address1, b'hello node1')
         assert node0._outbound.qsize() == 1
+
+    @patch.multiple(interfaces.AbstractConnection, __abstractmethods__=set())
+    def test_Node_send_message_uses_connection_difficulty_for_hashcash(self):
+        node0 = classes.Node.from_seed(self.seed0)
+        node1 = classes.Node(self.address1)
+        connection = interfaces.AbstractConnection(set([node0, node1]))
+        connection.data['difficulty'] = misc.MESSAGE_DIFFICULTY + 5
+        node0.add_connection(connection)
+
+        # precondition
+        assert [c for c in node0.connections][0].data['difficulty'] == misc.MESSAGE_DIFFICULTY + 5
+
+        # test
+        node0.send_message(node1.address, b'test')
+        msg = node0._outbound.get()
+        assert misc.check_difficulty(tapehash.tapehash1(msg.get_header() + msg.body, misc.TAPEHASH_CODE_SIZE), connection.data['difficulty'])
 
     def test_Node_subscribe_raises_TypeError_for_non_AbstractTopic(self):
         node = classes.Node(self.address0)
