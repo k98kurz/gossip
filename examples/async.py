@@ -73,7 +73,7 @@ async def interactive_shell(nodes: list[Node], topic: Topic):
             elif command in ('message', 'm'):
                 src = nodes[randint(0, len(nodes)-1)]
                 bulletin = Bulletin(topic, Content.from_content(bytes(data, 'utf-8'))).hashcash()
-                src.queue_action(Action('store_and_forward', {'bulletin': bulletin}))
+                src.queue_action(Action('store_and_forward', {'bulletin': bulletin, 'src': b''}))
             elif command in ('d', 'debug'):
                 print("debug enabled" if toggle_debug() else "debug disabled")
             elif command in ('s', 'short'):
