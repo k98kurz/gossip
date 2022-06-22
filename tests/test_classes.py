@@ -68,8 +68,10 @@ class TestBasicClasses(unittest.TestCase):
         assert hasattr(message, 'hashcash') and callable(message.hashcash)
 
         # ensure the nonce is wrong
-        if message.check_hash():
+        while message.check_hash():
             message.nonce -= 1
+            if message.nonce < 0:
+                message.nonce = 2**16-1
 
         assert not message.check_hash()
         nonce0 = message.nonce
@@ -819,6 +821,13 @@ class TestBasicClasses(unittest.TestCase):
         node1 = classes.Node(self.address1)
         classes.Connection([node0, node1])
         classes.Connection(set([node0, node1]))
+
+    def test_Connection_instantiates_with_nodes_and_data(self):
+        node0 = classes.Node(self.address0)
+        node1 = classes.Node(self.address1)
+        connection = classes.Connection([node0, node1])
+        assert hasattr(connection, 'nodes') and type(connection.nodes) is set
+        assert hasattr(connection, 'data') and type(connection.data) is dict
 
 
 if __name__ == '__main__':
