@@ -1,4 +1,5 @@
 from __future__ import annotations
+from random import randint
 from gossip.interfaces import (
     AbstractAction,
     AbstractBulletin,
@@ -13,8 +14,10 @@ from gossip.interfaces import (
     SupportsSendMessage,
 )
 from gossip.misc import(
+    MESSAGE_DIFFICULTY,
     MESSAGE_TTL,
     TAPEHASH_CODE_SIZE,
+    check_bulletin_difficulty,
     check_difficulty,
     format_address,
     debug,
@@ -51,7 +54,7 @@ class Message(AbstractMessage):
     def check_hash(self) -> bool:
         """Check that the hash of a message meets the difficulty threshold."""
         digest = tapehash1(self.get_header() + self.body, TAPEHASH_CODE_SIZE)
-        return check_difficulty(digest)
+        return check_difficulty(digest, MESSAGE_DIFFICULTY)
 
     def hashcash(self) -> Message:
         """Increment the nonce until check_hash() returns True."""
@@ -137,7 +140,8 @@ class Topic(AbstractTopic):
 
 
 class Bulletin(AbstractBulletin):
-    def __init__(self, topic: AbstractTopic, content: AbstractContent, ts: int = None) -> None:
+    def __init__(self, topic: AbstractTopic, content: AbstractContent,
+                ts: int = None, nonce: int = None) -> None:
         if not isinstance(topic, AbstractTopic):
             raise TypeError("topic must implement AbstractTopic")
         if not isinstance(content, AbstractContent):
@@ -146,20 +150,38 @@ class Bulletin(AbstractBulletin):
         self.topic = topic
         self.content = content
         self.ts = ts or int(time())
+        self.nonce = nonce or randint(0, 2**16-1)
 
     def __bytes__(self) -> bytes:
         return self.pack()
 
+    def check_hash(self) -> bool:
+        """Check that the hash of a message meets the difficulty threshold."""
+        digest = tapehash1(self.get_header(), TAPEHASH_CODE_SIZE)
+        return check_bulletin_difficulty(digest)
+
+    def hashcash(self) -> Bulletin:
+        """Increment the nonce until check_hash() returns True."""
+        while (not self.check_hash()):
+            self.nonce = (self.nonce + 1) % 2**32
+        return self
+
     def pack(self) -> bytes:
-        content = self.content.pack()
-        fstr = '!32s' + str(len(content)) + 's'
-        return struct.pack(fstr, self.topic.id, content)
+        fstr = '!32s32sii' + str(len(self.content.content)) + 's'
+        return struct.pack(
+            fstr,
+            self.topic.id,
+            self.content.id,
+            self.ts,
+            self.nonce,
+            self.content.content
+        )
 
     @classmethod
     def unpack(cls, data: bytes) -> Bulletin:
-        fstr = '!32s' + str(len(data) - 32) + 's'
-        topic_id, content = struct.unpack(fstr, data)
-        return cls(Topic(topic_id), Content.unpack(content))
+        fstr = '!32s32sii' + str(len(data) - 72) + 's'
+        topic_id, content_id, ts, nonce, content = struct.unpack(fstr, data)
+        return cls(Topic(topic_id), Content(content_id, content), ts, nonce)
 
 
 class Node(AbstractNode):
