@@ -152,7 +152,10 @@ class MessageHandler(SupportsHandleMessage):
     def handle(self, msg: Message) -> None:
         debug(f'MessageHandler.handle(): {format_address(bytes(msg.body))}')
         bulletin = Bulletin.unpack(msg.body)
-        self.node.queue_action(Action('store_and_forward', {'bulletin': bulletin}))
+        if bulletin.check_hash():
+            self.node.queue_action(Action('store_and_forward', {'bulletin': bulletin}))
+        else:
+            debug(f'MessageHandler.handle(): bulletin dropped for invalid hash')
 
 
 @dataclass
@@ -220,7 +223,7 @@ def main(node_count: int):
                     o.add_connection(Connection([n, o]))
         elif command in ('message', 'm'):
             src = nodes[randint(0, len(nodes)-1)]
-            bulletin = Bulletin(topic, Content.from_content(bytes(data, 'utf-8')))
+            bulletin = Bulletin(topic, Content.from_content(bytes(data, 'utf-8'))).hashcash()
             src.queue_action(Action('store_and_forward', {'bulletin': bulletin}))
         elif command in ('d', 'debug'):
             print("debug enabled" if toggle_debug() else "debug disabled")
