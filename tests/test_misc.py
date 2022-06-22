@@ -134,17 +134,27 @@ class TestMisc(unittest.TestCase):
 
     def test_check_difficulty_raises_TypeError_for_non_bytes_arg(self):
         with self.assertRaises(TypeError) as e:
-            misc.check_difficulty(1234)
+            misc.check_difficulty(1234, 1)
         assert str(e.exception) == 'digest must be bytes'
 
-    def test_check_difficulty_end_to_end(self):
+    def test_check_difficulty_raises_TypeError_for_non_bytes_arg(self):
+        with self.assertRaises(TypeError) as e:
+            misc.check_bulletin_difficulty(1234)
+        assert str(e.exception) == 'digest must be bytes'
+
+    def test_check_bulletin_difficulty_raises_TypeError_for_non_bytes_arg(self):
+        with self.assertRaises(TypeError) as e:
+            misc.check_bulletin_difficulty(1234)
+        assert str(e.exception) == 'digest must be bytes'
+
+    def test_check_bulletin_difficulty_end_to_end(self):
         misc.set_difficulty(8)
-        assert misc.check_difficulty(b'\x00')
-        assert not misc.check_difficulty(b'\x01')
+        assert misc.check_bulletin_difficulty(b'\x00')
+        assert not misc.check_bulletin_difficulty(b'\x01')
 
         misc.set_difficulty(5)
-        assert misc.check_difficulty(b'\x07')
-        assert not misc.check_difficulty(b'\x08')
+        assert misc.check_bulletin_difficulty(b'\x07')
+        assert not misc.check_bulletin_difficulty(b'\x08')
 
 
 if __name__ == '__main__':
