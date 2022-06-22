@@ -196,6 +196,14 @@ class AbstractBulletin(ABC):
         return time() >= self.ts + CONTENT_TTL
 
     @abstractmethod
+    def check_hash(self) -> bool:
+        pass
+
+    @abstractmethod
+    def hashcash(self) -> AbstractBulletin:
+        pass
+
+    @abstractmethod
     def pack(self) -> bytes:
         pass
 
