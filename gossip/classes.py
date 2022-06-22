@@ -51,14 +51,14 @@ class Message(AbstractMessage):
         """Produce a message header from non-content data."""
         return self.src + self.dst + self.ts.to_bytes(4, 'big') + self.nonce.to_bytes(4, 'big')
 
-    def check_hash(self) -> bool:
+    def check_hash(self, difficulty: int = MESSAGE_DIFFICULTY) -> bool:
         """Check that the hash of a message meets the difficulty threshold."""
         digest = tapehash1(self.get_header() + self.body, TAPEHASH_CODE_SIZE)
-        return check_difficulty(digest, MESSAGE_DIFFICULTY)
+        return check_difficulty(digest, difficulty)
 
-    def hashcash(self) -> Message:
+    def hashcash(self, difficulty: int = MESSAGE_DIFFICULTY) -> Message:
         """Increment the nonce until check_hash() returns True."""
-        while (not self.check_hash()):
+        while (not self.check_hash(difficulty)):
             self.nonce = (self.nonce + 1) % 2**32
         return self
 
@@ -243,9 +243,14 @@ class Node(AbstractNode):
         self._bulletin_handler = handler
 
     def add_connection(self, connection: AbstractConnection) -> None:
-        """Add the specified connection."""
+        """Add the specified connection and set its difficulty."""
         if not isinstance(connection, AbstractConnection):
             raise TypeError('connection must implement AbstractConnection')
+
+        if 'difficulty' in connection.data:
+            connection.data['difficulty'] = connection.data['difficulty']
+        else:
+            connection.data['difficulty'] = MESSAGE_DIFFICULTY
         self.connections.add(connection)
 
     def drop_connection(self, connection: AbstractConnection) -> None:
@@ -284,6 +289,12 @@ class Node(AbstractNode):
         else:
             debug("Node.receive_message: unsigned message rejected")
 
+    def get_message_difficulty(self, destination: bytes) -> int:
+        for c in self.connections:
+            if destination in [n.address for n in c.nodes]:
+                return c.data['difficulty']
+        return MESSAGE_DIFFICULTY
+
     def send_message(self, dst: bytes, msg: bytes) -> None:
         """Queue up an outgoing message."""
         if type(dst) is not bytes:
@@ -294,7 +305,8 @@ class Node(AbstractNode):
             raise ValueError("Cannot send a message without a SigningKey set.")
 
         message = Message(self.address, dst, msg)
-        message.encrypt().hashcash().sign(self._skey)
+        difficulty = self.get_message_difficulty(dst)
+        message.encrypt().hashcash(difficulty).sign(self._skey)
 
         if len(self.connections):
             if len([c for c in self.connections if dst in [n.address for n in c.nodes]]):

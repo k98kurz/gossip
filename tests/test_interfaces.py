@@ -108,6 +108,12 @@ class TestInterfaces(unittest.TestCase):
         content = interfaces.AbstractContent(b'123', b'hello world')
         assert type(content.content) is bytes
 
+    @patch.multiple(interfaces.AbstractContent, __abstractmethods__=set())
+    def test_AbstractContent_repr_returns_str(self):
+        id = b'123'
+        content = b'321'
+        topic = interfaces.AbstractContent(id, content)
+        assert type(repr(topic)) is str
 
     # AbstractNode tests
     @patch.multiple(interfaces.AbstractNode, __abstractmethods__=set())
