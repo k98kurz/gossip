@@ -177,6 +177,7 @@ class AbstractBulletin(ABC):
     topic: AbstractTopic
     content: AbstractContent
     ts: int = field(default_factory=lambda: int(time()))
+    nonce: int = field(default_factory=lambda: randint(0, 2**16-1))
 
     @abstractmethod
     def __bytes__(self) -> bytes:
