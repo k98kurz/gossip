@@ -119,6 +119,12 @@ class AbstractContent(ABC):
     def __bytes__(self) -> bytes:
         return self.id + self.content
 
+    def __repr__(self) -> str:
+        if self.content is None:
+            return self.id.hex()
+        else:
+            return self.id.hex() + ':' + self.content.hex()
+
     @abstractmethod
     def pack(self) -> bytes:
         pass
