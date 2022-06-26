@@ -9,7 +9,7 @@ from logical import (
     Bulletin,
     Connection,
     Content,
-    Node,
+    Node as BaseNode,
     Topic,
     debug,
     format_address,
@@ -30,12 +30,11 @@ from sys import argv
 """
 
 
-async def run_ticks(nodes: list[Node]):
-    while True:
-        for n in nodes:
-            if n.action_count() > 0:
-                n.process()
-        await asyncio.sleep(1)
+class Node(BaseNode):
+    async def run(self):
+        while True:
+            self.process()
+            await asyncio.sleep(1)
 
 
 async def interactive_shell(nodes: list[Node], topic: Topic):
@@ -105,7 +104,8 @@ async def main(node_count: int):
         node.subscribe(topic)
 
     with patch_stdout():
-        task = asyncio.create_task(run_ticks(nodes))
+        for node in nodes:
+            asyncio.create_task(node.run())
         await interactive_shell(nodes, topic)
 
 
