@@ -1,5 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
+from enum import Enum
 from functools import reduce
 from random import randint
 from secrets import token_bytes
@@ -38,13 +39,38 @@ from gossip.misc import (
 """
 
 
+class OpCodes(Enum):
+    """An enum containing the byte representations of protocol actions
+        for messages. Most are unimplemented and included simply for the
+        sake of having a thorough example.
+    """
+    # Bulletin-based actions
+    store_and_forward = 0x00
+    deliver_without_forward = 0x01
+    request_sync_headers = 0x02
+    respond_sync_headers = 0x03
+    request_content = 0x04
+    respond_content = 0x05
+    # F2F overlay actions
+    elect_spanning_tree_root = 0x06
+    request_child_address = 0x07
+    assign_child_address = 0x08
+    route_message = 0x09
+    respond_route_error = 0x0a
+
+    def __bytes__(self) -> bytes:
+        return self.value.to_bytes(1, 'big')
+
+
 @dataclass
 class ActionHandler(SupportsHandleAction):
     node: Node
 
     def handle(self, action: Action) -> None:
-        if action.name == 'store_and_forward':
+        if action.name == OpCodes.store_and_forward.name:
             self.store_and_forward(action)
+        elif action.name == OpCodes.deliver_without_forward.name:
+            self.deliver_without_forward(action)
 
     def store_and_forward(self, action: Action) -> None:
         if action.data['bulletin'] not in self.node.content_seen:
@@ -59,9 +85,15 @@ class ActionHandler(SupportsHandleAction):
             for c in self.node.connections:
                 dst = [n for n in c.nodes if n.address != self.node.address][0]
                 if dst != action.data['src']:
-                    self.node.send_message(dst.address, bytes(action.data['bulletin']))
+                    self.node.send_message(dst.address, bytes(OpCodes.store_and_forward) + bytes(action.data['bulletin']))
         else:
             debug(f"ActionHandler.handle(): store_and_forward skipped for seen message")
+
+    def deliver_without_forward(self, action: Action) -> None:
+        if action.data['bulletin'] not in self.node.content_seen:
+            # store
+            self.node.mark_as_seen(action.data['bulletin'])
+            debug(f"ActionHandler.handle(): deliver_without_forward [{format_address(action.data['bulletin'].content.id)}]")
 
 
 @dataclass
@@ -152,11 +184,21 @@ class MessageHandler(SupportsHandleMessage):
 
     def handle(self, msg: Message) -> None:
         debug(f'MessageHandler.handle(): {format_address(bytes(msg.body))}')
-        bulletin = Bulletin.unpack(msg.body)
-        if bulletin.check_hash():
-            self.node.queue_action(Action('store_and_forward', {'bulletin': bulletin, 'src': msg.src}))
+        opcode = OpCodes(msg.body[0])
+
+        if opcode in (OpCodes.store_and_forward, OpCodes.deliver_without_forward, OpCodes.respond_content):
+            bulletin = Bulletin.unpack(msg.body[1:])
+            if bulletin.check_hash():
+                self.node.queue_action(Action(opcode.name, {'bulletin': bulletin, 'src': msg.src}))
+            else:
+                debug(f'MessageHandler.handle(): bulletin dropped for invalid hash')
+        elif opcode in (OpCodes.request_sync_headers, OpCodes.respond_sync_headers):
+            topic = Topic(msg.body[1:33])
+            content = Content.unpack(msg.body[33:]) if len(msg.body) >= 65 else None
+            self.node.queue_action(Action(opcode.name, {'topic': topic, 'src': msg.src, 'content': content}))
         else:
-            debug(f'MessageHandler.handle(): bulletin dropped for invalid hash')
+            content = Content.unpack(msg.body[1:]) if len(msg.body) >= 33 else None
+            self.node.queue_action(Action(opcode.name, {'content': content, 'src': msg.src}))
 
 
 @dataclass
