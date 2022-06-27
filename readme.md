@@ -70,6 +70,7 @@ The code is reasonably SOLID and thoroughly tested.
 - [x] Globals and miscellaneous functions + tests
 - [x] Interfaces + tests
 - [x] Basic Classes + tests
+- [ ] Abstract away PyNaCl Ed25519 coupling with adapter pattern
 - [x] Example logical synchronous implementation
 - [x] Example logical asynchronous implementation
 - [ ] Example asynchronous implementation using sockets and sqlite
