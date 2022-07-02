@@ -119,10 +119,12 @@ class TestInterfaces(unittest.TestCase):
 
     # AbstractNode tests
     @patch.multiple(interfaces.AbstractNode, __abstractmethods__=set())
-    def test_AbstractNode_instantiates_with_address_and_is_hashable(self):
+    def test_AbstractNode_instantiates_with_address_and_delivery_code_and_is_hashable(self):
         node = interfaces.AbstractNode(b'nodeaddress')
         assert hasattr(node, 'address')
         assert type(node.address) is bytes
+        assert hasattr(node, 'delivery_code')
+        assert type(node.delivery_code) is bytes
         assert type(node.__hash__()) is int
 
     @patch.multiple(interfaces.AbstractBulletin, __abstractmethods__=set())

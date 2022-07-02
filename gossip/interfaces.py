@@ -2,9 +2,10 @@ from __future__ import annotations
 from abc import ABC, abstractclassmethod, abstractmethod
 from dataclasses import dataclass, field
 from gossip.misc import CONTENT_TTL
-from random import randint
-from time import time
 from queue import SimpleQueue
+from random import randint
+from secrets import token_bytes
+from time import time
 from typing import Protocol, runtime_checkable
 
 
@@ -244,6 +245,7 @@ class AbstractBulletin(ABC):
 @dataclass
 class AbstractNode(ABC):
     address: bytes
+    delivery_code: bytes = field(default_factory=lambda: token_bytes(8))
     content_seen: set[AbstractBulletin] = field(default_factory=set)
     topics_followed: set[AbstractTopic] = field(default_factory=set)
     connections: set[AbstractConnection] = field(default_factory=set)
@@ -259,7 +261,7 @@ class AbstractNode(ABC):
     _bulletin_handler: SupportsHandleRetrieveListQueryBulletin = None
 
     @abstractclassmethod
-    def from_seed(cls, seed: bytes) -> AbstractNode:
+    def from_seed(cls, seed: bytes, delivery_code: bytes = None) -> AbstractNode:
         pass
 
     def __hash__(self) -> int:
@@ -272,6 +274,13 @@ class AbstractNode(ABC):
 
     @abstractmethod
     def __repr__(self) -> str:
+        pass
+
+    @abstractmethod
+    def update_delivery_code(self) -> AbstractNode:
+        """Change delivery code, change topic subscriptions, and update
+            peers/friends.
+        """
         pass
 
     @abstractmethod

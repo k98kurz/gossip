@@ -28,6 +28,7 @@ from hashlib import sha256
 from nacl.exceptions import TypeError as NaclTypeError
 from nacl.public import SealedBox
 from nacl.signing import SigningKey, VerifyKey, SignedMessage
+from secrets import token_bytes
 import struct
 from time import time
 
@@ -258,21 +259,25 @@ class Bulletin(AbstractBulletin):
 
 
 class Node(AbstractNode):
-    def __init__(self, address: bytes) -> None:
+    def __init__(self, address: bytes, delivery_code: bytes = None) -> None:
         """Create a node from its address (public key bytes)."""
         # set defaults
-        super().__init__(address)
+        super().__init__(address, delivery_code=delivery_code)
+
+        # set delivery_code if necessary
+        if self.delivery_code is None:
+            self.delivery_code = token_bytes(8)
 
         # subscribe the node to messages directed to itself and the beacon channel
         self.topics_followed = set([
-            Topic.from_descriptor(address),
+            Topic.from_descriptor(self.delivery_code + self.address),
             Topic.from_descriptor(b'node beacon channel')
         ])
 
     @classmethod
-    def from_seed(cls, seed: bytes) -> Node:
+    def from_seed(cls, seed: bytes, delivery_code: bytes = None) -> Node:
         """Create a node from a seed filling out _skey."""
-        node = cls(NaclAdapter().get_address_from_seed(seed))
+        node = cls(NaclAdapter().get_address_from_seed(seed), delivery_code=delivery_code)
         node._seed = seed
         return node
 
@@ -284,6 +289,21 @@ class Node(AbstractNode):
             return "{'address': '" + format_address(self.address) + "','seed':'" + self._seed.hex() + "}"
         else:
             return "{'address': '" + format_address(self.address) + "'}"
+
+    def update_delivery_code(self) -> Node:
+        """Change delivery code, change topic subscriptions, and queue
+            action to update peers/friends.
+        """
+        self.unsubscribe(Topic.from_descriptor(self.delivery_code + self.address))
+        old_code = self.delivery_code
+        new_code = token_bytes(8)
+        self.delivery_code = new_code
+        self.subscribe(Topic.from_descriptor(self.delivery_code + self.address))
+        self.queue_action(Action('notify_changed_delivery_code', {
+            'old_code': old_code,
+            'new_code': new_code
+        }))
+        return self
 
     def register_message_sender(self, sender: SupportsSendMessage) -> Node:
         """Register the message sender."""

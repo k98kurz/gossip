@@ -71,7 +71,7 @@ The code is reasonably SOLID and thoroughly tested.
 - [x] Interfaces + tests
 - [x] Basic Classes + tests
 - [x] Abstract away PyNaCl Ed25519 coupling with adapter pattern
-- [ ] Add anti-spam delivery code to nodes (for topic descriptor)
+- [x] Add anti-spam delivery code to nodes (for topic descriptor, etc)
 - [x] Refactor interfaces and classes to use monad pattern where possible
 - [x] Example logical synchronous implementation
 - [x] Example logical asynchronous implementation
