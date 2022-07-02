@@ -68,6 +68,10 @@ class CryptoAdapter(Protocol):
         ...
 
 
+class CryptoError(BaseException):
+    ...
+
+
 @dataclass
 class AbstractMessage(ABC):
     src: bytes

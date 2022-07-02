@@ -780,7 +780,7 @@ class TestBasicClasses(unittest.TestCase):
         node.receive_message(bad_signature)
         assert "Node.receive_message: message signature failed verification" == debug_messages.pop()
         node.receive_message(unencrypted)
-        assert "Node.receive_message: unencrypted message encountered" == debug_messages.pop()
+        assert "Node.receive_message: message dropped due to CryptoError" == debug_messages.pop()
         node.receive_message(unsigned)
         assert "Node.receive_message: unsigned message rejected" == debug_messages.pop()
         assert len(debug_messages) == 0

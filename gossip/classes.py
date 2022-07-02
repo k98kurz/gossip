@@ -8,7 +8,7 @@ from gossip.interfaces import (
     AbstractMessage,
     AbstractNode,
     AbstractTopic,
-    CryptoAdapter,
+    CryptoError,
     SupportsHandleAction,
     SupportsHandleMessage,
     SupportsHandleRetrieveListQueryBulletin,
@@ -62,8 +62,11 @@ class NaclAdapter():
         if len(skey_seed) != 32:
             raise ValueError('skey_seed must be 32 bytes')
 
-        sealed_box = SealedBox(SigningKey(skey_seed).to_curve25519_private_key())
-        return sealed_box.decrypt(ciphertext)
+        try:
+            sealed_box = SealedBox(SigningKey(skey_seed).to_curve25519_private_key())
+            return sealed_box.decrypt(ciphertext)
+        except NaclTypeError as e:
+            raise CryptoError(str(e))
 
     def sign(self, message: bytes, skey_seed: bytes) -> bytes:
         """Create an Ed25519 signature."""
@@ -346,9 +349,9 @@ class Node(AbstractNode):
             if message.verify():
                 try:
                     message.decrypt(self._seed)
-                except NaclTypeError:
-                    debug("Node.receive_message: unencrypted message encountered")
-                self._inbound.put(message)
+                    self._inbound.put(message)
+                except CryptoError:
+                    debug("Node.receive_message: message dropped due to CryptoError")
             else:
                 debug("Node.receive_message: message signature failed verification")
         else:
