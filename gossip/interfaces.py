@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 from gossip.misc import CONTENT_TTL
 from random import randint
 from time import time
-from nacl.signing import SigningKey, VerifyKey, SignedMessage
 from queue import SimpleQueue
 from typing import Protocol, runtime_checkable
 
@@ -12,21 +11,21 @@ from typing import Protocol, runtime_checkable
 @runtime_checkable
 class SupportsSendMessage(Protocol):
     """Duck type protocol for message sender."""
-    def send(self, msg: AbstractMessage) -> None:
+    def send(self, msg: AbstractMessage) -> SupportsSendMessage:
         ...
 
 
 @runtime_checkable
 class SupportsHandleMessage(Protocol):
     """Duck type protocol for incoming message handler."""
-    def handle(self, msg: AbstractMessage) -> None:
+    def handle(self, msg: AbstractMessage) -> SupportsHandleMessage:
         ...
 
 
 @runtime_checkable
 class SupportsHandleAction(Protocol):
     """Duck type protocol for action handler."""
-    def handle(self, action: AbstractAction) -> None:
+    def handle(self, action: AbstractAction) -> SupportsHandleAction:
         ...
 
     def store_and_forward(self, action: AbstractAction) -> None:
@@ -36,7 +35,7 @@ class SupportsHandleAction(Protocol):
 @runtime_checkable
 class SupportsHandleRetrieveListQueryBulletin(Protocol):
     """Duck type protocol for handling bulletins of subscribed topics."""
-    def handle(self, bulletin: AbstractBulletin) -> None:
+    def handle(self, bulletin: AbstractBulletin) -> SupportsHandleRetrieveListQueryBulletin:
         ...
 
     def retrieve(self, topic_id: bytes, content_id: bytes) -> AbstractBulletin | None:
@@ -116,7 +115,7 @@ class AbstractMessage(ABC):
         pass
 
     @abstractmethod
-    def sign(self, skey: SigningKey) -> SignedMessage:
+    def sign(self, skey_seed: bytes) -> AbstractMessage:
         pass
 
     @abstractmethod
@@ -128,7 +127,7 @@ class AbstractMessage(ABC):
         pass
 
     @abstractmethod
-    def decrypt(self, skey: SigningKey) -> AbstractMessage:
+    def decrypt(self, skey_seed: bytes) -> AbstractMessage:
         pass
 
 
@@ -276,27 +275,27 @@ class AbstractNode(ABC):
         pass
 
     @abstractmethod
-    def register_message_sender(self, sender: SupportsSendMessage) -> None:
+    def register_message_sender(self, sender: SupportsSendMessage) -> AbstractNode:
         pass
 
     @abstractmethod
-    def register_message_handler(self, handler: SupportsHandleMessage) -> None:
+    def register_message_handler(self, handler: SupportsHandleMessage) -> AbstractNode:
         pass
 
     @abstractmethod
-    def register_action_handler(self, handler: SupportsHandleAction) -> None:
+    def register_action_handler(self, handler: SupportsHandleAction) -> AbstractNode:
         pass
 
     @abstractmethod
-    def register_bulletin_handler(self, handler: SupportsHandleRetrieveListQueryBulletin) -> None:
+    def register_bulletin_handler(self, handler: SupportsHandleRetrieveListQueryBulletin) -> AbstractNode:
         pass
 
     @abstractmethod
-    def add_connection(self, connection: AbstractConnection) -> None:
+    def add_connection(self, connection: AbstractConnection) -> AbstractNode:
         pass
 
     @abstractmethod
-    def drop_connection(self, connection: AbstractConnection) -> None:
+    def drop_connection(self, connection: AbstractConnection) -> AbstractNode:
         pass
 
     @abstractmethod
@@ -308,34 +307,34 @@ class AbstractNode(ABC):
         pass
 
     @abstractmethod
-    def send_message(self, dst: bytes, msg: bytes) -> None:
+    def send_message(self, dst: bytes, msg: bytes) -> AbstractNode:
         pass
 
     @abstractmethod
-    def subscribe(self, topic: AbstractTopic) -> None:
+    def subscribe(self, topic: AbstractTopic) -> AbstractNode:
         pass
 
     @abstractmethod
-    def unsubscribe(self, topic: AbstractTopic) -> None:
+    def unsubscribe(self, topic: AbstractTopic) -> AbstractNode:
         pass
 
     @abstractmethod
-    def publish(self, bulletin: AbstractBulletin) -> None:
+    def publish(self, bulletin: AbstractBulletin) -> AbstractNode:
         pass
 
     @abstractmethod
-    def queue_action(self, act: AbstractAction) -> None:
+    def queue_action(self, act: AbstractAction) -> AbstractNode:
         pass
 
     @abstractmethod
-    def process(self) -> None:
+    def process(self) -> AbstractNode:
         pass
 
     @abstractmethod
     def action_count(self) -> int:
         pass
 
-    def mark_as_seen(self, bulletin: AbstractBulletin) -> None:
+    def mark_as_seen(self, bulletin: AbstractBulletin) -> AbstractNode:
         if not isinstance(bulletin, AbstractBulletin):
             raise TypeError('bulletin must implement AbstractBulletin')
 
