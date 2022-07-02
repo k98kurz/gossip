@@ -1,3 +1,4 @@
+from __future__ import annotations
 from hashlib import sha256
 from queue import SimpleQueue
 from context import classes, interfaces, misc, tapehash
@@ -201,7 +202,7 @@ class TestBasicClasses(unittest.TestCase):
         assert hasattr(message, 'check_hash') and callable(message.check_hash)
         assert type(message.check_hash()) is bool
 
-    def test_Message_hashcash_changes_nonce_and_makes_check_hash_return_true(self):
+    def test_Message_hashcash__returns_AbstractMessage_changes_nonce_and_makes_check_hash_return_true(self):
         message = classes.Message(b'src', b'dst', b'hello')
         assert hasattr(message, 'hashcash') and callable(message.hashcash)
 
@@ -241,7 +242,6 @@ class TestBasicClasses(unittest.TestCase):
         with self.assertRaises(ValueError) as e:
             message.decrypt(b'invalid bytes seed')
         assert str(e.exception) == 'skey_seed must be 32 bytes'
-        assert isinstance(message.decrypt(self.seed0), interfaces.AbstractMessage)
 
     def test_Message_encrypt_and_decrypt_change_body_and_return_Message(self):
         message = classes.Message(self.address0, self.address0, b'hello')
@@ -361,7 +361,7 @@ class TestBasicClasses(unittest.TestCase):
         assert type(bulletin.check_hash()) is bool
 
     @patch.multiple(interfaces.AbstractTopic, __abstractmethods__=set())
-    def test_Bulletin_hashcash_changes_nonce_and_makes_check_hash_return_true(self):
+    def test_Bulletin_hashcash_returns_AbstractBulletin_changes_nonce_and_makes_check_hash_return_true(self):
         topic = interfaces.AbstractTopic(b'123', b'descriptor')
         content = classes.Content.from_content(b'hello world, this is ' + self.address0)
         bulletin = classes.Bulletin(topic, content)
@@ -506,6 +506,17 @@ class TestBasicClasses(unittest.TestCase):
         assert node1.action_count() == 1
         assert node1._inbound.qsize() == 1
 
+    def test_Node_register_message_sender_returns_AbstractNode(self):
+        class MessageSender():
+            def send(self, msg: interfaces.AbstractMessage) -> MessageSender:
+                ...
+
+        # monad pattern test
+        node = classes.Node.from_seed(self.seed0)
+        monad = node.register_message_sender(MessageSender())
+        assert isinstance(monad, interfaces.AbstractNode)
+        assert monad is node
+
     def test_Node_register_message_handler_raises_TypeError_for_invalid_arg(self):
         # setup
         node = classes.Node(self.address0)
@@ -550,6 +561,18 @@ class TestBasicClasses(unittest.TestCase):
         node.process()
         assert node._inbound.qsize() == 0
         assert node._actions.qsize() == 1
+
+    def test_Node_register_message_handler_returns_AbstractNode(self):
+        class MessageHandler():
+            def handle(self, msg: interfaces.AbstractMessage) -> MessageHandler:
+                ...
+
+        # monad pattern test
+        node = classes.Node.from_seed(self.seed0)
+        monad = node.register_message_handler(MessageHandler())
+        assert isinstance(monad, interfaces.AbstractNode)
+        assert monad is node
+
 
     def test_Node_register_action_handler_raises_TypeError_for_invalid_arg(self):
         # setup
@@ -605,6 +628,20 @@ class TestBasicClasses(unittest.TestCase):
         assert node._actions.qsize() == 0
         assert node._outbound.qsize() == 1
 
+    def test_Node_register_action_handler_returns_AbstractNode(self):
+        class ActionHandler(interfaces.SupportsHandleAction):
+            def handle(self, action: interfaces.AbstractAction) -> ActionHandler:
+                ...
+
+            def store_and_forward(self, action: interfaces.AbstractAction) -> None:
+                ...
+
+        # monad pattern test
+        node = classes.Node.from_seed(self.seed0)
+        monad = node.register_action_handler(ActionHandler())
+        assert isinstance(monad, interfaces.AbstractNode)
+        assert monad is node
+
     def test_Node_register_bulletin_handler_raises_TypeError_for_invalid_arg(self):
         # setup
         node = classes.Node(self.address0)
@@ -615,7 +652,7 @@ class TestBasicClasses(unittest.TestCase):
             node.register_bulletin_handler(Thing())
         assert str(e.exception) == 'handler must fulfill SupportsHandleRetrieveListQueryBulletin duck type'
 
-    def test_Node_register_buulletin_handler_handles_new_bulletins_on_process(self):
+    def test_Node_register_bulletin_handler_handles_new_bulletins_on_process(self):
         bulletins_handled = []
         class BulletinHandler(interfaces.SupportsHandleRetrieveListQueryBulletin):
             node: interfaces.AbstractNode
@@ -675,6 +712,26 @@ class TestBasicClasses(unittest.TestCase):
         assert len(node._bulletin_handler.storage) == 1
         assert len(bulletins_handled) == 2
 
+    def test_Node_register_bulletin_handler_returns_AbstractNode(self):
+        class BulletinHandler(interfaces.SupportsHandleRetrieveListQueryBulletin):
+            def handle(self, bulletin: interfaces.AbstractBulletin) -> BulletinHandler:
+                ...
+
+            def retrieve(self, topic_id: bytes, content_id: bytes) -> interfaces.AbstractBulletin | None:
+                ...
+
+            def list(self, topic_id: bytes) -> list[bytes]:
+                ...
+
+            def query(self, query: dict) -> set[interfaces.AbstractBulletin]:
+                ...
+
+        # monad pattern test
+        node = classes.Node.from_seed(self.seed0)
+        monad = node.register_bulletin_handler(BulletinHandler())
+        assert isinstance(monad, interfaces.AbstractNode)
+        assert monad is node
+
     def test_Node_add_connection_raises_TypeError_on_non_AbstractConnection_arg(self):
         node = classes.Node(self.address0)
         with self.assertRaises(TypeError) as e:
@@ -688,7 +745,7 @@ class TestBasicClasses(unittest.TestCase):
         assert str(e.exception) == 'connection must implement AbstractConnection'
 
     @patch.multiple(interfaces.AbstractConnection, __abstractmethods__=set())
-    def test_Node_add_connection_and_drop_connection_work(self):
+    def test_Node_add_connection_and_drop_connection_work_and_return_AbstractNode(self):
         node0 = classes.Node(self.address0)
         node1 = classes.Node(self.address1)
         connection = interfaces.AbstractConnection(set([node0, node1]))
@@ -697,13 +754,17 @@ class TestBasicClasses(unittest.TestCase):
         assert len(node0.connections) == 0
 
         # test 1
-        node0.add_connection(connection)
+        monad = node0.add_connection(connection)
         assert len(node0.connections) == 1
         assert connection in node0.connections
+        assert isinstance(monad, interfaces.AbstractNode)
+        assert monad is node0
 
         # test 2
-        node0.drop_connection(connection)
+        monad = node0.drop_connection(connection)
         assert len(node0.connections) == 0
+        assert isinstance(monad, interfaces.AbstractNode)
+        assert monad is node0
 
     @patch.multiple(interfaces.AbstractConnection, __abstractmethods__=set())
     def test_Node_add_connection_adds_difficulty_threshold_to_connection(self):
@@ -857,6 +918,12 @@ class TestBasicClasses(unittest.TestCase):
         node0.send_message(self.address1, b'hello node1')
         assert node0._outbound.qsize() == 1
 
+    def test_Node_send_message_returns_AbstractNode(self):
+        node = classes.Node.from_seed(self.seed0)
+        monad = node.send_message(self.address1, b'hello node1')
+        assert isinstance(monad, interfaces.AbstractNode)
+        assert monad is node
+
     @patch.multiple(interfaces.AbstractConnection, __abstractmethods__=set())
     def test_Node_send_message_uses_connection_difficulty_for_hashcash(self):
         node0 = classes.Node.from_seed(self.seed0)
@@ -882,6 +949,13 @@ class TestBasicClasses(unittest.TestCase):
             node.subscribe(b'still not a topic')
         assert str(e.exception) == 'topic must implement AbstractTopic'
 
+    def test_Node_subscribe_returns_AbstractNode(self):
+        node = classes.Node.from_seed(self.seed0)
+        topic = classes.Topic.from_descriptor(b'monad pattern test')
+        monad = node.subscribe(topic)
+        assert isinstance(monad, interfaces.AbstractNode)
+        assert monad is node
+
     def test_Node_topics_followed_has_len_2_on_instantiate(self):
         node = classes.Node(self.address0)
         assert len(node.topics_followed) == 2
@@ -901,6 +975,13 @@ class TestBasicClasses(unittest.TestCase):
         node.unsubscribe(topic)
         assert topic not in node.topics_followed
 
+    def test_Node_unsubscribe_returns_AbstractNode(self):
+        node = classes.Node(self.address0)
+        topic = classes.Topic.from_descriptor(b'monad pattern test')
+        monad = node.unsubscribe(topic)
+        assert isinstance(monad, interfaces.AbstractNode)
+        assert monad is node
+
     def test_Node_publish_queues_incoming_message_containing_bulletin(self):
         # setup
         node = classes.Node.from_seed(self.seed0)
@@ -915,6 +996,16 @@ class TestBasicClasses(unittest.TestCase):
         node.publish(bulletin)
         assert node.action_count() == 1
         assert node._inbound.qsize() == 1
+
+    def test_Node_publish_returns_AbstractNode(self):
+        node = classes.Node.from_seed(self.seed0)
+        topic = classes.Topic.from_descriptor(b'monad pattern test')
+        content = classes.Content.from_content(b'should return itself')
+        bulletin = classes.Bulletin(topic, content)
+
+        monad = node.publish(bulletin)
+        assert isinstance(monad, interfaces.AbstractNode)
+        assert monad is node
 
     def test_Node_queue_action_raises_TypeError_for_non_AbstractAction_arg(self):
         node = classes.Node.from_seed(self.seed0)
@@ -935,12 +1026,26 @@ class TestBasicClasses(unittest.TestCase):
         node.queue_action(action)
         assert node._actions.qsize() == 1
 
+    @patch.multiple(interfaces.AbstractAction, __abstractmethods__=set())
+    def test_Node_queue_action_returns_AbstractNode(self):
+        node = classes.Node.from_seed(self.seed0)
+        action = interfaces.AbstractAction('do a thing', {})
+        monad = node.queue_action(action)
+        assert isinstance(monad, interfaces.AbstractNode)
+        assert monad is node
+
     def test_Node_action_count_returns_int_number_of_items_in_actions_queue(self):
         node = classes.Node.from_seed(self.seed0)
 
         node._actions.put('something')
         assert type(node.action_count()) is int
         assert node.action_count() == node._actions.qsize()
+
+    def test_Node_process_returns_AbstractNode(self):
+        node = classes.Node(self.address0)
+        monad = node.process()
+        assert isinstance(monad, interfaces.AbstractNode)
+        assert monad is node
 
 
     # Neighbor tests

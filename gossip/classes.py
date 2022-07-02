@@ -149,7 +149,7 @@ class Message(AbstractMessage):
         return struct.pack(fstr, self.dst, self.src, self.ts, self.nonce, self.sig, self.body)
 
     @classmethod
-    def unpack(cls, packed: bytes) -> AbstractMessage:
+    def unpack(cls, packed: bytes) -> Message:
         """Unpack the data with struct."""
         fstr = '!32s32sii64s' + str(len(packed) - 136) + 's'
         (dst, src, ts, nonce, sig, body) = struct.unpack(fstr, packed)
@@ -285,23 +285,29 @@ class Node(AbstractNode):
         else:
             return "{'address': '" + format_address(self.address) + "'}"
 
-    def register_message_sender(self, sender: SupportsSendMessage) -> None:
+    def register_message_sender(self, sender: SupportsSendMessage) -> Node:
         """Register the message sender."""
         if not isinstance(sender, SupportsSendMessage):
             raise TypeError('sender must fulfill SupportsSendMessage duck type')
-        self._message_sender = sender
 
-    def register_message_handler(self, handler: SupportsHandleMessage) -> None:
+        self._message_sender = sender
+        return self
+
+    def register_message_handler(self, handler: SupportsHandleMessage) -> Node:
         """Register the incoming message handler."""
         if not isinstance(handler, SupportsHandleMessage):
             raise TypeError('handler must fulfill SupportsHandleMessage duck type')
+
         self._message_handler = handler
+        return self
 
     def register_action_handler(self, handler: SupportsHandleAction) -> None:
         """Register the action handler."""
         if not isinstance(handler, SupportsHandleAction):
             raise TypeError('handler must fulfill SupportsHandleAction duck type')
+
         self._action_handler = handler
+        return self
 
     def register_bulletin_handler(self, handler: SupportsHandleRetrieveListQueryBulletin) -> None:
         """Register the bulletin handler."""
@@ -309,8 +315,9 @@ class Node(AbstractNode):
             raise TypeError('handler must fulfill SupportsHandleRetrieveListQueryBulletin duck type')
 
         self._bulletin_handler = handler
+        return self
 
-    def add_connection(self, connection: AbstractConnection) -> None:
+    def add_connection(self, connection: AbstractConnection) -> Node:
         """Add the specified connection and set its difficulty."""
         if not isinstance(connection, AbstractConnection):
             raise TypeError('connection must implement AbstractConnection')
@@ -319,13 +326,17 @@ class Node(AbstractNode):
             connection.data['difficulty'] = connection.data['difficulty']
         else:
             connection.data['difficulty'] = MESSAGE_DIFFICULTY
-        self.connections.add(connection)
 
-    def drop_connection(self, connection: AbstractConnection) -> None:
+        self.connections.add(connection)
+        return self
+
+    def drop_connection(self, connection: AbstractConnection) -> Node:
         """Drop the specified connection."""
         if not isinstance(connection, AbstractConnection):
             raise TypeError('connection must implement AbstractConnection')
+
         self.connections.remove(connection)
+        return self
 
     def count_connections(self) -> int:
         return len(self.connections)
@@ -363,7 +374,7 @@ class Node(AbstractNode):
                 return c.data['difficulty']
         return MESSAGE_DIFFICULTY
 
-    def send_message(self, dst: bytes, msg: bytes) -> None:
+    def send_message(self, dst: bytes, msg: bytes) -> Node:
         """Queue up an outgoing message."""
         if type(dst) is not bytes:
             raise TypeError("dst must be bytes")
@@ -384,29 +395,37 @@ class Node(AbstractNode):
         else:
             self._outbound.put(message)
 
-    def subscribe(self, topic: AbstractTopic) -> None:
+        return self
+
+    def subscribe(self, topic: AbstractTopic) -> Node:
         if not isinstance(topic, AbstractTopic):
             raise TypeError('topic must implement AbstractTopic')
 
         self.topics_followed.add(topic)
+        return self
 
-    def unsubscribe(self, topic: AbstractTopic) -> None:
+    def unsubscribe(self, topic: AbstractTopic) -> Node:
         if topic in self.topics_followed:
             self.topics_followed.remove(topic)
 
-    def publish(self, bulletin: AbstractBulletin) -> None:
+        return self
+
+    def publish(self, bulletin: AbstractBulletin) -> Node:
         """Publish a bulletin by engaging the store_and_forward action."""
         message = Message(self.address, self.address, bytes(bulletin))
         message.encrypt().hashcash().sign(self._seed)
         self.receive_message(message)
+        return self
 
-    def queue_action(self, act: AbstractAction) -> None:
+    def queue_action(self, act: AbstractAction) -> Node:
         """Queue an action to be processed by the action handler."""
         if not isinstance(act, AbstractAction):
             raise TypeError('act must implement AbstractAction')
-        self._actions.put(act)
 
-    def process(self) -> None:
+        self._actions.put(act)
+        return self
+
+    def process(self) -> Node:
         """Process actions for this node once."""
         if self._outbound.qsize() > 0 and self._message_sender is not None:
             self._message_sender.send(self._outbound.get())
@@ -416,6 +435,8 @@ class Node(AbstractNode):
             self._action_handler.handle(self._actions.get())
         if self._new_bulletins.qsize() > 0 and self._bulletin_handler is not None:
             self._bulletin_handler.handle(self._new_bulletins.get())
+
+        return self
 
     def action_count(self) -> int:
         """Count the size of pending messages and actions."""
