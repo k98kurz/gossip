@@ -1053,6 +1053,64 @@ class TestBasicClasses(unittest.TestCase):
         assert isinstance(monad, interfaces.AbstractNode)
         assert monad is node
 
+    def test_Node_process_invokes_all_handlers_and_decreases_queue_sizes(self):
+        handler_messages = set()
+
+        class MessageSender(interfaces.SupportsSendMessage):
+            def send(self, msg: interfaces.AbstractMessage) -> MessageSender:
+                handler_messages.add('MessageSender invoked')
+                return self
+
+        class MessageHandler(interfaces.SupportsHandleMessage):
+            def handle(self, msg: interfaces.AbstractMessage) -> MessageHandler:
+                handler_messages.add('MessageHandler invoked')
+                return self
+
+        class ActionHandler(interfaces.SupportsHandleAction):
+            def handle(self, action: interfaces.AbstractAction) -> ActionHandler:
+                handler_messages.add('ActionHandler invoked')
+                return self
+
+        class BulletinHandler(interfaces.SupportsHandleRetrieveListQueryBulletin):
+            def handle(self, bulletin: interfaces.AbstractBulletin) -> BulletinHandler:
+                handler_messages.add('BulletinHandler invoked')
+                return self
+
+        # create node and register handlers
+        node = classes.Node.from_seed(self.seed0)
+        node.register_message_sender(MessageSender())
+        node.register_message_handler(MessageHandler())
+        node.register_action_handler(ActionHandler())
+        node.register_bulletin_handler(BulletinHandler())
+
+        # set up data and add to queues
+        topic = classes.Topic.from_descriptor(node.address)
+        content = classes.Content.from_content(b'test message')
+        bulletin = classes.Bulletin(topic, content).hashcash()
+        message = classes.Message(node.address, node.address, bytes(bulletin))
+        message.encrypt().sign(node._seed).hashcash()
+        node.send_message(self.address0, bytes(bulletin))
+        node.receive_message(message)
+        node.queue_action(classes.Action('do thing', {}))
+        node._new_bulletins.put(bulletin)
+
+        # preconditions
+        assert node._outbound.qsize() == 1
+        assert node._inbound.qsize() == 1
+        assert node._actions.qsize() == 1
+        assert node._new_bulletins.qsize() == 1
+
+        # tests
+        node.process()
+        assert 'MessageSender invoked' in handler_messages
+        assert node._outbound.qsize() == 0
+        assert 'MessageHandler invoked' in handler_messages
+        assert node._inbound.qsize() == 0
+        assert 'ActionHandler invoked' in handler_messages
+        assert node._actions.qsize() == 0
+        assert 'BulletinHandler invoked' in handler_messages
+        assert node._new_bulletins.qsize() == 0
+
 
     # Neighbor tests
     def test_Neighbor_implements_AbstractNode_and_isinstance_of_Node(self):
