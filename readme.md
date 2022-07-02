@@ -61,9 +61,24 @@ When `mark_as_seen` is called, it pushes the Bulletin onto the new
 bulletins queue to be handled by the registered bulletin handler on the
 next `process()` call. The bulletin handler is responsible for storage
 and retrieval of bulletins via the `handle`, `retrieve`, `list`, and
-`query` methods.
+`query` methods. The bulletin handler should also register handlers for
+the node's subscribed topics.
 
-The code is reasonably SOLID and thoroughly tested.
+AbstractNode and Node have a `delivery_code` attribute and a
+`change_delivery_code` method as an additional spam protection feature.
+The attribute is used for calculating the topic subscription for the
+node, and the method changes the topic and queues an action named
+'notify_changed_delivery_code'. If this feature is to be used, then the
+action handler must implement that method and should notify each
+connected node (or contacts in a chat application) of the updated
+delivery code. The action handler should also implement a method for
+reacting to a notification received of that type. The message handler
+can also make use of this delivery code, and details are left to the
+implementer's discretion.
+
+The code is reasonably SOLID and thoroughly tested. A monad pattern is
+used by some methods of Bulletin and Message where method call chaining
+is convenient and useful (e.g. `message.encrypt().sign().hashcash()`).
 
 ## Status
 
@@ -105,6 +120,8 @@ published as a package.
 - SupportsHandleMessage(Protocol)
 - SupportsHandleAction(Protocol)
 - SupportsHandleRetrieveListQueryBulletin(Protocol)
+- CryptoAdapter
+- CryptoError
 - AbstractMessage(ABC)
 - AbstractContent(ABC)
 - AbstractConnection(ABC)
@@ -115,6 +132,7 @@ published as a package.
 
 ### Classes
 
+- NaclAdapter(CryptoAdapter protocol)
 - Message(AbstractMessage)
 - Content(AbstractContent)
 - Topic(AbstractTopic)
