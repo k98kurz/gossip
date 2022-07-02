@@ -214,7 +214,9 @@ class TestBasicClasses(unittest.TestCase):
 
         assert not message.check_hash()
         nonce0 = message.nonce
-        assert isinstance(message.hashcash(), interfaces.AbstractMessage)
+        monad = message.hashcash()
+        assert isinstance(monad, interfaces.AbstractMessage)
+        assert monad is message
         assert message.nonce != nonce0
         assert message.check_hash()
 
@@ -222,7 +224,9 @@ class TestBasicClasses(unittest.TestCase):
         message = classes.Message(self.address0, self.address0, b'hello')
         assert message.sig is None
         assert hasattr(message, 'sign') and callable(message.sign)
-        assert isinstance(message.sign(self.seed0), interfaces.AbstractMessage)
+        monad = message.sign(self.seed0)
+        assert isinstance(monad, interfaces.AbstractMessage)
+        assert monad is message
         assert type(message.sig) is bytes and len(message.sig) == 64
 
     def test_Message_verify_returns_bool_and_verifies_signed_message(self):
@@ -373,7 +377,9 @@ class TestBasicClasses(unittest.TestCase):
 
         assert not bulletin.check_hash()
         nonce0 = bulletin.nonce
-        assert isinstance(bulletin.hashcash(), interfaces.AbstractBulletin)
+        monad = bulletin.hashcash()
+        assert isinstance(monad, interfaces.AbstractBulletin)
+        assert monad is bulletin
         assert bulletin.nonce != nonce0
         assert bulletin.check_hash()
 
