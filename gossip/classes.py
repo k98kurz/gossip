@@ -8,6 +8,7 @@ from gossip.interfaces import (
     AbstractMessage,
     AbstractNode,
     AbstractTopic,
+    CryptoAdapter,
     SupportsHandleAction,
     SupportsHandleMessage,
     SupportsHandleRetrieveListQueryBulletin,
@@ -27,9 +28,67 @@ from hashlib import sha256
 from nacl.exceptions import TypeError as NaclTypeError
 from nacl.public import SealedBox
 from nacl.signing import SigningKey, VerifyKey, SignedMessage
-from queue import SimpleQueue
 import struct
 from time import time
+
+
+class NaclAdapter():
+    def encrypt(self, plaintext: bytes, address: bytes) -> bytes:
+        """Encrypt plaintext with Curve25519 ephemeral ECDHE."""
+        if type(plaintext) is not bytes:
+            raise TypeError('plaintext must be bytes')
+        if type(address) is not bytes:
+            raise TypeError('address must be bytes')
+        if len(address) != 32:
+            raise ValueError('address must be 32 bytes')
+
+        sealed_box = SealedBox(VerifyKey(address).to_curve25519_public_key())
+        return sealed_box.encrypt(plaintext)
+
+    def decrypt(self, ciphertext: bytes, skey_seed: bytes) -> bytes:
+        """Decrypt Curve25519 ephemeral ECDHE encrypted ciphertext."""
+        if type(ciphertext) is not bytes:
+            raise TypeError('ciphertext must be bytes')
+        if type(skey_seed) is not bytes:
+            raise TypeError('skey_seed must be bytes')
+        if len(skey_seed) != 32:
+            raise ValueError('skey_seed must be 32 bytes')
+
+        sealed_box = SealedBox(SigningKey(skey_seed).to_curve25519_private_key())
+        return sealed_box.decrypt(ciphertext)
+
+    def sign(self, message: bytes, skey_seed: bytes) -> bytes:
+        """Create an Ed25519 signature."""
+        if type(message) is not bytes:
+            raise TypeError('message must be bytes')
+        if type(skey_seed) is not bytes:
+            raise TypeError('skey_seed must be bytes')
+        if len(skey_seed) != 32:
+            raise ValueError('skey_seed must be 32 bytes')
+
+        skey = SigningKey(skey_seed)
+        return skey.sign(message)[:64]
+
+    def verify(self, signature: bytes, message: bytes, vkey: bytes) -> bool:
+        """Verify an Ed25519 signature."""
+        if type(signature) is not bytes:
+            raise TypeError('signature must be bytes')
+        if len(signature) != 64:
+            raise ValueError('signature must be 64 bytes')
+        if type(message) is not bytes:
+            raise TypeError('message must be bytes')
+        if type(vkey) is not bytes:
+            raise TypeError('vkey must be bytes')
+        if len(vkey) != 32:
+            raise ValueError('vkey must be 32 bytes')
+
+        try:
+            vkey = VerifyKey(vkey)
+            sig = SignedMessage(signature + message)
+            vkey.verify(sig)
+            return True
+        except:
+            return False
 
 
 class Message(AbstractMessage):

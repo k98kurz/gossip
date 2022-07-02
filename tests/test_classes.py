@@ -25,6 +25,126 @@ class TestBasicClasses(unittest.TestCase):
         assert True
 
 
+    # NaclAdapter tests
+    def test_NaclAdapter_has_all_protocol_methods(self):
+        adapter = classes.NaclAdapter()
+        assert isinstance(adapter, interfaces.CryptoAdapter)
+        assert hasattr(adapter, 'encrypt') and callable(adapter.encrypt)
+        assert hasattr(adapter, 'decrypt') and callable(adapter.decrypt)
+        assert hasattr(adapter, 'sign') and callable(adapter.sign)
+        assert hasattr(adapter, 'verify') and callable(adapter.verify)
+
+    def test_NaclAdapter_encrypt_raises_TypeError_or_ValueError_for_invalid_args(self):
+        adapter = classes.NaclAdapter()
+
+        with self.assertRaises(TypeError) as e:
+            adapter.encrypt('not bytes message', b'bytes address')
+        assert str(e.exception) == 'plaintext must be bytes'
+
+        with self.assertRaises(TypeError) as e:
+            adapter.encrypt(b'bytes message', 'not bytes address')
+        assert str(e.exception) == 'address must be bytes'
+
+        with self.assertRaises(ValueError) as e:
+            adapter.encrypt(b'bytes message', b'too short byte address')
+        assert str(e.exception) == 'address must be 32 bytes'
+
+    def test_NaclAdapter_encrypt_returns_encrypted_bytes(self):
+        adapter = classes.NaclAdapter()
+        plaintext = b'hello world'
+
+        ciphertext = adapter.encrypt(plaintext, self.address0)
+        assert type(ciphertext) is bytes
+        assert ciphertext != plaintext
+
+    def test_NaclAdapter_decrypt_raises_TypeError_or_ValueError_for_invalid_args(self):
+        adapter = classes.NaclAdapter()
+
+        with self.assertRaises(TypeError) as e:
+            adapter.decrypt('not bytes ciphertext', b'bytes seed')
+        assert str(e.exception) == 'ciphertext must be bytes'
+
+        with self.assertRaises(TypeError) as e:
+            adapter.decrypt(b'bytes ciphertext', 'not bytes seed')
+        assert str(e.exception) == 'skey_seed must be bytes'
+
+        with self.assertRaises(ValueError) as e:
+            adapter.decrypt(b'bytes ciphertext', b'too short bytes seed')
+        assert str(e.exception) == 'skey_seed must be 32 bytes'
+
+    def test_NaclAdapter_decrypt_returns_decrypted_bytes_from_encrypted_bytes(self):
+        adapter = classes.NaclAdapter()
+        plaintext = b'hello world'
+        ciphertext = adapter.encrypt(plaintext, self.address0)
+
+        decrypted = adapter.decrypt(ciphertext, self.seed0)
+        assert type(decrypted) is bytes
+        assert decrypted == plaintext
+
+    def test_NaclAdapter_sign_raises_TypeError_or_ValueError_for_invalid_args(self):
+        adapter = classes.NaclAdapter()
+
+        with self.assertRaises(TypeError) as e:
+            adapter.sign('not bytes message', b'bytes seed')
+        assert str(e.exception) == 'message must be bytes'
+
+        with self.assertRaises(TypeError) as e:
+            adapter.sign(b'bytes message', 'not bytes seed')
+        assert str(e.exception) == 'skey_seed must be bytes'
+
+        with self.assertRaises(ValueError) as e:
+            adapter.sign(b'bytes message', b'too short bytes seed')
+        assert str(e.exception) == 'skey_seed must be 32 bytes'
+
+    def test_NaclAdapter_sign_returns_64_signature_bytes(self):
+        adapter = classes.NaclAdapter()
+        message = b'hello world'
+
+        signature = adapter.sign(message, self.seed0)
+        assert type(signature) is bytes
+        assert signature != message
+        assert len(signature) == 64
+
+    def test_NaclAdapter_verify_raises_TypeError_or_ValueError_for_invalid_args(self):
+        adapter = classes.NaclAdapter()
+        fake_sig = b''.join(b'0' for i in range(64))
+
+        with self.assertRaises(TypeError) as e:
+            adapter.verify('not bytes signature', b'bytes message', b'bytes vkey')
+        assert str(e.exception) == 'signature must be bytes'
+
+        with self.assertRaises(ValueError) as e:
+            adapter.verify(b'too short signature', b'bytes message', b'bytes vkey')
+        assert str(e.exception) == 'signature must be 64 bytes'
+
+        with self.assertRaises(TypeError) as e:
+            adapter.verify(fake_sig, 'not bytes message', b'bytes vkey')
+        assert str(e.exception) == 'message must be bytes'
+
+        with self.assertRaises(TypeError) as e:
+            adapter.verify(fake_sig, b'bytes message', 'not bytes vkey')
+        assert str(e.exception) == 'vkey must be bytes'
+
+        with self.assertRaises(ValueError) as e:
+            adapter.verify(fake_sig, b'bytes message', b'too short vkey')
+        assert str(e.exception) == 'vkey must be 32 bytes'
+
+    def test_NaclAdapter_verify_returns_False_for_bad_signature(self):
+        adapter = classes.NaclAdapter()
+        fake_sig = b''.join(b'0' for i in range(64))
+
+        result = adapter.verify(fake_sig, b'message', self.address0)
+        assert result is False
+
+    def test_NaclAdapter_verify_returns_True_for_good_signature(self):
+        adapter = classes.NaclAdapter()
+        message = b'hello world'
+        sig = adapter.sign(message, self.seed0)
+
+        result = adapter.verify(sig, message, self.address0)
+        assert result is True
+
+
     # Message tests
     def test_Message_instantiates_with_src_dst_body_ts_and_nonce(self):
         message = classes.Message(b'src', b'dst', b'hello')
