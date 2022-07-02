@@ -144,6 +144,13 @@ class Message(AbstractMessage):
             self.nonce = (self.nonce + 1) % 2**32
         return self
 
+    def prepare_for_send(self, skey_seed: bytes, difficulty: int = None) -> Message:
+        """Shortcut for message.encrypt().sign(skey_seed).hashcash()."""
+        self.encrypt().sign(skey_seed)
+        if difficulty:
+            return self.hashcash(difficulty)
+        return self.hashcash()
+
     def pack(self) -> bytes:
         """Pack the data with struct."""
         fstr = '!32s32sii64s' + str(len(self.body)) + 's'
@@ -405,7 +412,7 @@ class Node(AbstractNode):
 
         message = Message(self.address, dst, msg)
         difficulty = self.get_message_difficulty(dst)
-        message.encrypt().hashcash(difficulty).sign(self._seed)
+        message.prepare_for_send(self._seed, difficulty)
 
         if len(self.connections):
             if len([c for c in self.connections if dst in [n.address for n in c.nodes]]):

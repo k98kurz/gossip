@@ -272,6 +272,24 @@ class TestBasicClasses(unittest.TestCase):
         assert type(unpacked) is classes.Message
         assert message == unpacked
 
+    def test_Message_prepare_for_send_equivalent_to_encrypt_sign_hashcash(self):
+        message0 = classes.Message(self.address0, self.address0, b'hello')
+        message1 = classes.Message(self.address0, self.address0, b'hello')
+        message1.ts = message0.ts
+        message1.nonce = message0.nonce
+
+        message0.prepare_for_send(self.seed0)
+        message1.encrypt().sign(self.seed0).hashcash()
+
+        # cannot do message0 == message1 because encrypt() uses ephemeral keys
+        assert message0.body != b'hello'
+        assert message1.body != b'hello'
+        assert type(message0.sig) is bytes and len(message0.sig) == 64
+        assert type(message1.sig) is bytes and len(message1.sig) == 64
+        assert message0.check_hash()
+        assert message1.check_hash()
+        assert message0.decrypt(self.seed0).body == message1.decrypt(self.seed0).body
+
 
     # Content tests
     def test_Content_instantiates_with_and_bytes_id_and_content(self):
