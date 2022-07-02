@@ -52,6 +52,9 @@ class SupportsHandleRetrieveListQueryBulletin(Protocol):
 @runtime_checkable
 class CryptoAdapter(Protocol):
     """Duck type protocol for handling cryptographic operations."""
+    def get_address_from_seed(self, seed: bytes) -> bytes:
+        ...
+
     def encrypt(self, plaintext: bytes, address: bytes) -> bytes:
         ...
 
@@ -243,8 +246,6 @@ class AbstractNode(ABC):
     connections: set[AbstractConnection] = field(default_factory=set)
     data: dict = field(default_factory=dict)
     _seed: bytes = None
-    _skey: SigningKey = None
-    _vkey: VerifyKey = None
     _inbound: SimpleQueue = field(default_factory=SimpleQueue)
     _outbound: SimpleQueue = field(default_factory=SimpleQueue)
     _new_bulletins: SimpleQueue = field(default_factory=SimpleQueue)
