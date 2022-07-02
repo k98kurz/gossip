@@ -1,5 +1,5 @@
 from __future__ import annotations
-from abc import ABC, ABCMeta, abstractclassmethod, abstractmethod
+from abc import ABC, abstractclassmethod, abstractmethod
 from dataclasses import dataclass, field
 from gossip.misc import CONTENT_TTL
 from random import randint
@@ -39,13 +39,29 @@ class SupportsHandleRetrieveListQueryBulletin(Protocol):
     def handle(self, bulletin: AbstractBulletin) -> None:
         ...
 
-    def retrieve(self, topic_id: bytes, content_id: bytes) -> AbstractBulletin:
+    def retrieve(self, topic_id: bytes, content_id: bytes) -> AbstractBulletin | None:
         ...
 
     def list(self, topic_id: bytes) -> list[bytes]:
         ...
 
     def query(self, query: dict) -> set[AbstractBulletin]:
+        ...
+
+
+@runtime_checkable
+class CryptoAdapter(Protocol):
+    """Duck type protocol for handling cryptographic operations."""
+    def encrypt(self, plaintext: bytes, address: bytes) -> bytes:
+        ...
+
+    def decrypt(self, ciphertext: bytes, skey_seed: bytes) -> bytes:
+        ...
+
+    def sign(self, message: bytes, skey_seed: bytes) -> bytes:
+        ...
+
+    def verify(self, signature: bytes, message: bytes, vkey: bytes) -> bool:
         ...
 
 
@@ -58,6 +74,7 @@ class AbstractMessage(ABC):
     nonce: int = field(default_factory=lambda: randint(0, 2**16-1))
     sig: bytes = None
     metadata: dict = field(default_factory=dict)
+    crypto_adapter: CryptoAdapter = field(default=None)
 
     @abstractmethod
     def __repr__(self) -> str:

@@ -90,7 +90,7 @@ class TestInterfaces(unittest.TestCase):
         assert type(message.nonce) is int
 
     @patch.multiple(interfaces.AbstractMessage, __abstractmethods__=set())
-    def test_AbstractMessage_instantiates_with_empty_sig_and_metadata(self):
+    def test_AbstractMessage_instantiates_with_empty_sig_metadata_and_crypto_adapter(self):
         src = b'src'
         dst = b'dst'
         body = b'hello'
@@ -98,6 +98,8 @@ class TestInterfaces(unittest.TestCase):
         assert message.sig is None
         assert type(message.metadata) is dict
         assert len(message.metadata.keys()) == 0
+        assert hasattr(message, 'crypto_adapter')
+        assert message.crypto_adapter is None
 
 
     # AbstractContent test
