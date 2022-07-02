@@ -33,6 +33,14 @@ from time import time
 
 
 class NaclAdapter():
+    def get_address_from_seed(self, seed: bytes) -> bytes:
+        if type(seed) != bytes:
+            raise TypeError('seed must be bytes')
+        if len(seed) != 32:
+            raise ValueError('seed must be 32 bytes')
+
+        return bytes(SigningKey(seed).verify_key)
+
     def encrypt(self, plaintext: bytes, address: bytes) -> bytes:
         """Encrypt plaintext with Curve25519 ephemeral ECDHE."""
         if type(plaintext) is not bytes:
@@ -95,6 +103,9 @@ class Message(AbstractMessage):
     """Message model contains the source, destination, content, and
         optional signature and metadata.
     """
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs, crypto_adapter = NaclAdapter())
+
     def __repr__(self) -> str:
         return f"{format_address(self.src)}->{format_address(self.dst)}: " + \
             f"{format_address(sha256(self.body).digest())}"
@@ -105,6 +116,14 @@ class Message(AbstractMessage):
     def __hash__(self) -> int:
         """Enable inclusion in sets."""
         return hash(bytes(self))
+
+    def __eq__(self, other: Message) -> bool:
+        if type(other) != type(self):
+            return False
+
+        return self.src == other.src and self.dst == other.dst and \
+            self.body == other.body and self.ts == other.ts and \
+            self.nonce == other.nonce and self.sig == other.sig
 
     def get_header(self) -> bytes:
         """Produce a message header from non-content data."""
@@ -133,38 +152,30 @@ class Message(AbstractMessage):
         (dst, src, ts, nonce, sig, body) = struct.unpack(fstr, packed)
         return Message(src, dst, body, ts, nonce, sig)
 
-    def sign(self, skey: SigningKey) -> Message:
+    def sign(self, skey_seed: bytes) -> Message:
         """Generate a signature for the message."""
-        sig = skey.sign(bytes(self))
-        self.sig = sig[:64]
+        self.sig = self.crypto_adapter.sign(bytes(self), skey_seed)
         return self
 
     def verify(self) -> bool:
-        """Verify the message signature"""
-        try:
-            vkey = VerifyKey(self.src)
-            sig = SignedMessage(self.sig + bytes(self))
-            vkey.verify(sig)
-            return True
-        except:
+        """Verify the message signature."""
+        if self.sig is None:
             return False
+        return self.crypto_adapter.verify(self.sig, bytes(self), self.src)
 
     def encrypt(self) -> Message:
         """Encrypt using ephemeral ECDHE."""
-        sealed_box = SealedBox(VerifyKey(self.dst).to_curve25519_public_key())
-        self.body = sealed_box.encrypt(self.body)
+        self.body = self.crypto_adapter.encrypt(self.body, self.dst)
         return self
 
-    def decrypt(self, skey: SigningKey) -> Message:
+    def decrypt(self, skey_seed: bytes) -> Message:
         """Decrypt using ephemeral ECDHE."""
-        if type(skey) is not SigningKey:
-            raise TypeError('skey must be a valid SigningKey')
-        if bytes(skey.verify_key) != self.dst:
-            raise ValueError('Must use the skey of the receiver to decrypt.')
+        if type(skey_seed) is not bytes:
+            raise TypeError('skey_seed must be bytes')
+        if len(skey_seed) != 32:
+            raise ValueError('skey_seed must be 32 bytes')
 
-        privk = skey.to_curve25519_private_key()
-        sealed_box = SealedBox(privk)
-        self.body = sealed_box.decrypt(self.body)
+        self.body = self.crypto_adapter.decrypt(self.body, skey_seed)
         return self
 
 
@@ -249,9 +260,6 @@ class Node(AbstractNode):
         # set defaults
         super().__init__(address)
 
-        # set the vkey
-        self._vkey = VerifyKey(address)
-
         # subscribe the node to messages directed to itself and the beacon channel
         self.topics_followed = set([
             Topic.from_descriptor(address),
@@ -261,9 +269,7 @@ class Node(AbstractNode):
     @classmethod
     def from_seed(cls, seed: bytes) -> Node:
         """Create a node from a seed filling out _skey."""
-        skey = SigningKey(seed)
-        node = cls(bytes(skey.verify_key))
-        node._skey = skey
+        node = cls(NaclAdapter().get_address_from_seed(seed))
         node._seed = seed
         return node
 
@@ -339,7 +345,7 @@ class Node(AbstractNode):
         elif message.sig is not None:
             if message.verify():
                 try:
-                    message.decrypt(self._skey)
+                    message.decrypt(self._seed)
                 except NaclTypeError:
                     debug("Node.receive_message: unencrypted message encountered")
                 self._inbound.put(message)
@@ -360,12 +366,12 @@ class Node(AbstractNode):
             raise TypeError("dst must be bytes")
         if type(msg) is not bytes:
             raise TypeError("msg must be bytes")
-        if self._skey is None:
-            raise ValueError("Cannot send a message without a SigningKey set.")
+        if self._seed is None:
+            raise ValueError("Cannot send a message without a seed set.")
 
         message = Message(self.address, dst, msg)
         difficulty = self.get_message_difficulty(dst)
-        message.encrypt().hashcash(difficulty).sign(self._skey)
+        message.encrypt().hashcash(difficulty).sign(self._seed)
 
         if len(self.connections):
             if len([c for c in self.connections if dst in [n.address for n in c.nodes]]):
@@ -388,7 +394,7 @@ class Node(AbstractNode):
     def publish(self, bulletin: AbstractBulletin) -> None:
         """Publish a bulletin by engaging the store_and_forward action."""
         message = Message(self.address, self.address, bytes(bulletin))
-        message.encrypt().hashcash().sign(self._skey)
+        message.encrypt().hashcash().sign(self._seed)
         self.receive_message(message)
 
     def queue_action(self, act: AbstractAction) -> None:

@@ -29,10 +29,28 @@ class TestBasicClasses(unittest.TestCase):
     def test_NaclAdapter_has_all_protocol_methods(self):
         adapter = classes.NaclAdapter()
         assert isinstance(adapter, interfaces.CryptoAdapter)
+        assert hasattr(adapter, 'get_address_from_seed') and callable(adapter.get_address_from_seed)
         assert hasattr(adapter, 'encrypt') and callable(adapter.encrypt)
         assert hasattr(adapter, 'decrypt') and callable(adapter.decrypt)
         assert hasattr(adapter, 'sign') and callable(adapter.sign)
         assert hasattr(adapter, 'verify') and callable(adapter.verify)
+
+    def test_NaclAdapter_get_address_from_seed_raises_TypeError_or_ValueError_for_invalid_arg(self):
+        adapter = classes.NaclAdapter()
+
+        with self.assertRaises(TypeError) as e:
+            adapter.get_address_from_seed('not bytes')
+        assert str(e.exception) == 'seed must be bytes'
+
+        with self.assertRaises(ValueError) as e:
+            adapter.get_address_from_seed(b'not 32 bytes')
+        assert str(e.exception) == 'seed must be 32 bytes'
+
+    def test_NaclAdapter_get_address_from_seed_returns_bytes_of_vkey(self):
+        adapter = classes.NaclAdapter()
+
+        assert type(adapter.get_address_from_seed(self.seed0)) is bytes
+        assert adapter.get_address_from_seed(self.seed0) == bytes(self.skey0.verify_key)
 
     def test_NaclAdapter_encrypt_raises_TypeError_or_ValueError_for_invalid_args(self):
         adapter = classes.NaclAdapter()
@@ -203,27 +221,27 @@ class TestBasicClasses(unittest.TestCase):
         message = classes.Message(self.address0, self.address0, b'hello')
         assert message.sig is None
         assert hasattr(message, 'sign') and callable(message.sign)
-        assert isinstance(message.sign(self.skey0), interfaces.AbstractMessage)
+        assert isinstance(message.sign(self.seed0), interfaces.AbstractMessage)
         assert type(message.sig) is bytes and len(message.sig) == 64
 
     def test_Message_verify_returns_bool_and_verifies_signed_message(self):
         message = classes.Message(self.address0, self.address0, b'hello')
         assert hasattr(message, 'verify') and callable(message.verify)
         assert type(message.verify()) is bool
-        assert not message.verify()
-        message.sign(self.skey0)
-        assert message.verify()
+        assert message.verify() is False
+        message.sign(self.seed0)
+        assert message.verify() is True
 
     def test_Message_decrypt_raises_TypeError_or_ValueError_for_invalid_skey_arg(self):
         message = classes.Message(self.address0, self.address0, b'hello')
         message.encrypt()
         with self.assertRaises(TypeError) as e:
-            message.decrypt('not a SigningKey')
-        assert str(e.exception) == 'skey must be a valid SigningKey'
+            message.decrypt('not bytes')
+        assert str(e.exception) == 'skey_seed must be bytes'
         with self.assertRaises(ValueError) as e:
-            message.decrypt(SigningKey(self.address0))
-        assert str(e.exception) == 'Must use the skey of the receiver to decrypt.'
-        assert isinstance(message.decrypt(self.skey0), interfaces.AbstractMessage)
+            message.decrypt(b'invalid bytes seed')
+        assert str(e.exception) == 'skey_seed must be 32 bytes'
+        assert isinstance(message.decrypt(self.seed0), interfaces.AbstractMessage)
 
     def test_Message_encrypt_and_decrypt_change_body_and_return_Message(self):
         message = classes.Message(self.address0, self.address0, b'hello')
@@ -233,7 +251,7 @@ class TestBasicClasses(unittest.TestCase):
         body0 = message.body
         assert isinstance(message.encrypt(), interfaces.AbstractMessage)
         assert message.body != body0
-        assert isinstance(message.decrypt(self.skey0), interfaces.AbstractMessage)
+        assert isinstance(message.decrypt(self.seed0), interfaces.AbstractMessage)
         assert message.body == body0
 
     def test_Message_pack_returns_bytes_and_unpacks_properly(self):
@@ -242,7 +260,7 @@ class TestBasicClasses(unittest.TestCase):
         assert hasattr(classes.Message, 'unpack') and callable(classes.Message.unpack)
 
         # encrypt and sign
-        message.encrypt().sign(self.skey0)
+        message.encrypt().sign(self.seed0)
 
         packed = message.pack()
         assert type(packed) is bytes
@@ -390,8 +408,6 @@ class TestBasicClasses(unittest.TestCase):
         assert hasattr(node, 'connections') and type(node.connections) is set
         assert hasattr(node, 'data') and type(node.data) is dict
         assert hasattr(node, '_seed') and node._seed is None
-        assert hasattr(node, '_skey') and node._skey is None
-        assert hasattr(node, '_vkey') and type(node._vkey) is VerifyKey
         assert hasattr(node, '_inbound') and type(node._inbound) is SimpleQueue
         assert hasattr(node, '_outbound') and type(node._outbound) is SimpleQueue
         assert hasattr(node, '_actions') and type(node._actions) is SimpleQueue
@@ -409,8 +425,6 @@ class TestBasicClasses(unittest.TestCase):
         assert hasattr(node, 'connections') and type(node.connections) is set
         assert hasattr(node, 'data') and type(node.data) is dict
         assert hasattr(node, '_seed') and type(node._seed) is bytes
-        assert hasattr(node, '_skey') and type(node._skey) is SigningKey
-        assert hasattr(node, '_vkey') and type(node._vkey) is VerifyKey
         assert hasattr(node, '_inbound') and type(node._inbound) is SimpleQueue
         assert hasattr(node, '_outbound') and type(node._outbound) is SimpleQueue
         assert hasattr(node, '_actions') and type(node._actions) is SimpleQueue
@@ -419,12 +433,6 @@ class TestBasicClasses(unittest.TestCase):
         assert hasattr(node, '_message_handler') and node._message_handler is None
         assert hasattr(node, '_action_handler') and node._action_handler is None
         assert hasattr(node, '_bulletin_handler') and node._bulletin_handler is None
-
-    def test_Node_instance_not_from_seed_cannot_sign_messages(self):
-        node = classes.Node(self.address0)
-        with self.assertRaises(ValueError) as e:
-            node.send_message(self.address1, b'hello world')
-        assert str(e.exception) == "Cannot send a message without a SigningKey set."
 
     def test_Node_instances_from_seed_can_encrypt_and_decrypt_Messages(self):
         # create the nodes
@@ -525,7 +533,7 @@ class TestBasicClasses(unittest.TestCase):
         node = classes.Node.from_seed(self.seed0)
         handler = MessageHandler([node])
         message = classes.Message(node.address, node.address, b'hello world')
-        message.encrypt().hashcash().sign(node._skey)
+        message.encrypt().hashcash().sign(node._seed)
 
         # preconditions
         assert node._message_handler is None
@@ -757,7 +765,7 @@ class TestBasicClasses(unittest.TestCase):
         unsigned = classes.Message(node.address, node.address, b'hello world')
         unsigned.hashcash()
         unencrypted = classes.Message(node.address, node.address, b'hello world')
-        unencrypted.hashcash().sign(node._skey)
+        unencrypted.hashcash().sign(node._seed)
         bad_signature = classes.Message(node.address, node.address, b'hello world')
         bad_signature.hashcash()
         bad_signature.sig = node.address + node.address
@@ -792,12 +800,12 @@ class TestBasicClasses(unittest.TestCase):
             node.send_message(b'bytes dst', 'not bytes msg')
         assert str(e.exception) == 'msg must be bytes'
 
-    def test_Node_send_message_raises_ValueError_if_no_skey_present(self):
+    def test_Node_send_message_raises_ValueError_if_no_seed_present(self):
         node = classes.Node(self.address0)
 
         with self.assertRaises(ValueError) as e:
             node.send_message(b'bytes dst', b'bytes msg')
-        assert str(e.exception) == 'Cannot send a message without a SigningKey set.'
+        assert str(e.exception) == 'Cannot send a message without a seed set.'
 
     @patch.multiple(interfaces.AbstractConnection, __abstractmethods__=set())
     def test_Node_send_message_queues_outbound_message_when_connection_present(self):
@@ -944,7 +952,6 @@ class TestBasicClasses(unittest.TestCase):
     def test_Neighbor_has_address_vkey_and_empty_topics_followed(self):
         neighbor = classes.Neighbor(self.address1)
         assert hasattr(neighbor, 'address') and type(neighbor.address) is bytes
-        assert hasattr(neighbor, '_vkey') and type(neighbor._vkey) is VerifyKey
         assert hasattr(neighbor, 'topics_followed') and type(neighbor.topics_followed) is set
         assert len(neighbor.topics_followed) == 0
 
