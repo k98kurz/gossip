@@ -85,12 +85,12 @@ def execute_opcode(opcode: int, pointer: int, tape: bytearray) -> bytearray:
         7: lambda data: (data ** 2) % 256,
         8: lambda data: (data // 2) % 256,
         9: lambda data: ((data << 4) % 256) & (data >> 4),
-        10: lambda data: sha256(bytes(data)).digest()[data % 32],
-        11: lambda data: md5(bytes(data)).digest()[data % 16],
-        12: lambda data: shake_128(bytes(data)).digest(data + 1)[data],
-        13: lambda data: sha3_256(bytes(data)).digest()[data % 32],
-        14: lambda data: sha3_512(bytes(data)).digest()[data % 64],
-        15: lambda data: blake2s(bytes(data)).digest()[data % 32]
+        10: lambda data: sha256(data.to_bytes(1, 'big')).digest()[data % 32],
+        11: lambda data: md5(data.to_bytes(1, 'big')).digest()[data % 16],
+        12: lambda data: shake_128(data.to_bytes(1, 'big')).digest(data + 1)[data],
+        13: lambda data: sha3_256(data.to_bytes(1, 'big')).digest()[data % 32],
+        14: lambda data: sha3_512(data.to_bytes(1, 'big')).digest()[data % 64],
+        15: lambda data: blake2s(data.to_bytes(1, 'big')).digest()[data % 32]
     }
 
     tape[pointer] = operations[opcode](tape[pointer])
