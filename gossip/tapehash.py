@@ -66,6 +66,16 @@ def tapehash2(preimage: bytes, tape_size_multiplier: int = 1024*32) -> bytes:
 
 
 def rotate_tape(tape: bytearray, pointer: int) -> bytes:
+    """Rotates the tape so that the pointer-indexed byte is first."""
+    if not isinstance(tape, bytearray):
+        raise TypeError('tape must be bytearray')
+    if not isinstance(pointer, int):
+        raise TypeError('pointer must be int')
+    if len(tape) < 1:
+        raise ValueError('tape must not be empty')
+    if pointer < 0 or pointer >= len(tape):
+        raise ValueError('pointer must be a valid index of tape')
+
     new_tape = tape[pointer:]
     new_tape.extend(tape[:pointer])
     return bytes(new_tape)
@@ -76,9 +86,13 @@ def execute_opcode(opcode: int, pointer: int, tape: bytearray) -> bytearray:
     if type(opcode) is not int:
         raise TypeError('opcode must be an int')
     if type(pointer) is not int:
-        raise TypeError('opcode must be an int')
+        raise TypeError('pointer must be an int')
     if type(tape) is not bytearray:
         raise TypeError('tape must be bytearray')
+    if opcode < 0 or opcode > 15:
+        raise ValueError('opcode must be between 0 and 15')
+    if pointer < 0 or pointer >= len(tape):
+        raise ValueError('pointer must be a valid index of tape')
 
     operations = {
         0: lambda data: data, # no op
@@ -90,7 +104,7 @@ def execute_opcode(opcode: int, pointer: int, tape: bytearray) -> bytearray:
         6: lambda data: (data * 2) % 256,
         7: lambda data: (data ** 2) % 256,
         8: lambda data: (data // 2) % 256,
-        9: lambda data: ((data << 4) % 256) & (data >> 4),
+        9: lambda data: ((data << 4) % 256) | (data >> 4),
         10: lambda data: sha256(data).digest()[data[0] % 32],
         11: lambda data: md5(data).digest()[data[0] % 16],
         12: lambda data: shake_128(data).digest(data[0] + 1)[data[0]],
