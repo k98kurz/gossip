@@ -6,6 +6,21 @@ import unittest
 class TestTapeHash(unittest.TestCase):
     """Test suite for tapehash."""
 
+    def test_rotate_tape_rotates_tape(self):
+        tape = bytearray(b'hello world')
+
+        assert tapehash.rotate_tape(tape, 0) == tape
+        assert tapehash.rotate_tape(tape, 1) == bytearray(b'ello worldh')
+        assert tapehash.rotate_tape(tape, 2) == bytearray(b'llo worldhe')
+        assert tapehash.rotate_tape(tape, 3) == bytearray(b'lo worldhel')
+        assert tapehash.rotate_tape(tape, 4) == bytearray(b'o worldhell')
+        assert tapehash.rotate_tape(tape, 5) == bytearray(b' worldhello')
+        assert tapehash.rotate_tape(tape, 6) == bytearray(b'worldhello ')
+        assert tapehash.rotate_tape(tape, 7) == bytearray(b'orldhello w')
+        assert tapehash.rotate_tape(tape, 8) == bytearray(b'rldhello wo')
+        assert tapehash.rotate_tape(tape, 9) == bytearray(b'ldhello wor')
+        assert tapehash.rotate_tape(tape, 10) == bytearray(b'dhello worl')
+
     def test_tapehash1_returns_bytes_different_from_preimage(self):
         preimage = b'hello world'
         digest = tapehash.tapehash1(preimage)

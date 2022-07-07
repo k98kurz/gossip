@@ -65,6 +65,12 @@ def tapehash2(preimage: bytes, tape_size_multiplier: int = 1024*32) -> bytes:
     return sha256(tape).digest()
 
 
+def rotate_tape(tape: bytearray, pointer: int) -> bytes:
+    new_tape = tape[pointer:]
+    new_tape.extend(tape[:pointer])
+    return bytes(new_tape)
+
+
 def execute_opcode(opcode: int, pointer: int, tape: bytearray) -> bytearray:
     """Execute a single opcode."""
     if type(opcode) is not int:
@@ -85,15 +91,18 @@ def execute_opcode(opcode: int, pointer: int, tape: bytearray) -> bytearray:
         7: lambda data: (data ** 2) % 256,
         8: lambda data: (data // 2) % 256,
         9: lambda data: ((data << 4) % 256) & (data >> 4),
-        10: lambda data: sha256(data.to_bytes(1, 'big')).digest()[data % 32],
-        11: lambda data: md5(data.to_bytes(1, 'big')).digest()[data % 16],
-        12: lambda data: shake_128(data.to_bytes(1, 'big')).digest(data + 1)[data],
-        13: lambda data: sha3_256(data.to_bytes(1, 'big')).digest()[data % 32],
-        14: lambda data: sha3_512(data.to_bytes(1, 'big')).digest()[data % 64],
-        15: lambda data: blake2s(data.to_bytes(1, 'big')).digest()[data % 32]
+        10: lambda data: sha256(data).digest()[data[0] % 32],
+        11: lambda data: md5(data).digest()[data[0] % 16],
+        12: lambda data: shake_128(data).digest(data[0] + 1)[data[0]],
+        13: lambda data: sha3_256(data).digest()[data[0] % 32],
+        14: lambda data: sha3_512(data).digest()[data[0] % 64],
+        15: lambda data: blake2s(data).digest()[data[0] % 32]
     }
 
-    tape[pointer] = operations[opcode](tape[pointer])
+    if opcode < 10:
+        tape[pointer] = operations[opcode](tape[pointer])
+    else:
+        tape[pointer] = operations[opcode](rotate_tape(tape, pointer))
     return tape
 
 
